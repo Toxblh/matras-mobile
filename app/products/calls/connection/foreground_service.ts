@@ -52,7 +52,7 @@ const describeCall = async (serverUrl: string, channelId: string) => {
     }
 };
 
-export const foregroundServiceStart = async (intl: IntlShape, serverUrl?: string, channelId?: string) => {
+export const foregroundServiceStart = async (intl: IntlShape, withCamera = false, serverUrl?: string, channelId?: string) => {
     if (Platform.OS !== 'android') {
         return;
     }
@@ -63,6 +63,7 @@ export const foregroundServiceStart = async (intl: IntlShape, serverUrl?: string
         channelDescription: intl.formatMessage(messages.channelDescription),
         title: call.title || intl.formatMessage(messages.title),
         text: intl.formatMessage(messages.text),
+        withCamera,
         ...(call.avatarUserId && serverUrl ? {serverUrl, avatarUserId: call.avatarUserId} : {}),
     });
 };
