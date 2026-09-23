@@ -1,0 +1,100 @@
+name: android
+# Собирает release-APK ветки matras и публикует его как Forgejo-релиз
+# (телефон скачивает APK прямо со страницы Releases).
+# Секреты (опционально, без них APK подписан debug-ключом):
+#   ANDROID_KEYSTORE_B64      base64 от .keystore
+#   ANDROID_KEYSTORE_PASSWORD пароль keystore и ключа (в build.gradle они общие)
+#   ANDROID_KEY_ALIAS         alias ключа
+on:
+  push:
+    branches: [matras]
+    paths-ignore: ['**.md', 'ios/**', 'fastlane/**', 'detox/**', '.github/**']
+  workflow_dispatch:
+
+jobs:
+  apk:
+    # als-huge (лимит 3 ч). Образ: JDK 17, Android SDK/NDK 27.1, Node 22 — всё, что нужно RN 0.83.
+    runs-on: als-huge
+    timeout-minutes: 150
+    container:
+      image: reactnativecommunity/react-native-android:v21.1
+    env:
+      NODE_OPTIONS: --max_old_space_size=6144
+      GRADLE_OPTS: -Dorg.gradle.daemon=false
+    steps:
+      - name: checkout
+        # actions/checkout v4.4.0, pinned to the validated ALS commit.
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: tsc + lint
+        run: npm run check
+
+      - name: keystore (если задан секрет)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "ANDROID_KEYSTORE_B64 не задан — APK будет подписан debug-ключом"
+            exit 0
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 -d > android/app/matras.keystore
+          {
+            echo "MATTERMOST_RELEASE_STORE_FILE=matras.keystore"
+            echo "MATTERMOST_RELEASE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "MATTERMOST_RELEASE_KEY_ALIAS=$KEY_ALIAS"
+          } >> android/gradle.properties
+          echo "release keystore подключён"
+
+      - name: gradle assembleRelease (arm64 + x86_64)
+        run: |
+          set -Eeuo pipefail
+          cd android
+          ./gradlew assembleRelease --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a,x86_64
+          ls -la app/build/outputs/apk/release/
+
+      - name: publish forgejo release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          API_BASE: ${{ github.server_url }}/api/v1
+          REPO: ${{ github.repository }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          token="${RELEASE_TOKEN:-$GH_TOKEN}"
+          version="$(sed -nE 's/.*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -1)"
+          short="${COMMIT_SHA:0:8}"
+          tag="android-${version}-${short}"
+          cd android/app/build/outputs/apk/release
+          apk="$(ls *.apk | head -1)"
+          mv "$apk" "matras-${version}-${short}.apk"; apk="matras-${version}-${short}.apk"
+          sha256sum "$apk" > SHA256SUMS
+          body=$(jq -nc --arg t "$tag" --arg c "$COMMIT_SHA" \
+            '{tag_name:$t,target_commitish:$c,name:$t,body:"Android APK ветки matras (android.yml).",draft:false,prerelease:true}')
+          resp=$(curl -fsS --show-error -X POST -H "Authorization: token $token" -H 'Content-Type: application/json' \
+            -d "$body" "$API_BASE/repos/$REPO/releases")
+          rid=$(printf '%s' "$resp" | jq -r '.id')
+          case "$rid" in ''|*[!0-9]*) echo "unexpected release id: $rid" >&2; exit 1 ;; esac
+          for f in "$apk" SHA256SUMS; do
+            curl -fsS --show-error -X POST -H "Authorization: token $token" -F "attachment=@$f" \
+              "$API_BASE/repos/$REPO/releases/$rid/assets?name=$f" >/dev/null
+          done
+          echo "::notice::${{ github.server_url }}/$REPO/releases/download/$tag/$apk"
+
+      - name: notify on failure
+        if: failure()
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+        run: |
+          [ -n "${NTFY_URL:-}" ] || { echo "NTFY_URL не задан, пропускаю"; exit 0; }
+          curl -fsS -X POST "$NTFY_URL" -H "Title: matras android build FAILED" \
+            -d "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
