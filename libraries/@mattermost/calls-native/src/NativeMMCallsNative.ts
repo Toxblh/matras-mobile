@@ -39,6 +39,10 @@ export type ForegroundNotificationConfig = Readonly<{
   channelDescription: string;
   title: string;
   text: string;
+
+  // matras: the DM partner whose avatar the ongoing-call notification shows.
+  serverUrl?: string;
+  avatarUserId?: string;
 }>
 
 // JS → native call-end reasons. The native side maps these to the matching

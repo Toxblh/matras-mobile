@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -16,8 +17,10 @@ import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -119,6 +122,17 @@ class MMCallsIncomingCallActivity : Activity() {
             setTextColor(Color.argb(0xB3, 0xFF, 0xFF, 0xFF))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
         })
+        MMCallsIncomingCall.currentAvatar?.let { bmp ->
+            val size = (120 * dp).toInt()
+            root.addView(ImageView(this).apply {
+                setImageBitmap(bmp)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                clipToOutline = true
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
+                }
+            }, LinearLayout.LayoutParams(size, size).apply { topMargin = (32 * dp).toInt() })
+        }
         root.addView(TextView(this).apply {
             text = callerName
             setTextColor(Color.WHITE)

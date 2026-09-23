@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
@@ -57,6 +58,10 @@ object MMCallsIncomingCall {
 
     @Volatile private var currentUuid: String? = null
 
+    /** Caller avatar for the full-screen activity (same process, avoids a Bitmap in the Intent). */
+    @Volatile var currentAvatar: Bitmap? = null
+        private set
+
     /** Same call → same UUID in every process, so JS and native agree without a handshake. */
     fun uuidFor(serverId: String, channelId: String): String =
         UUID.nameUUIDFromBytes("$serverId:$channelId".toByteArray()).toString()
@@ -67,6 +72,7 @@ object MMCallsIncomingCall {
         contentIntent: PendingIntent,
         answerIntent: PendingIntent,
         declineIntent: PendingIntent,
+        avatar: Bitmap? = null,
     ) {
         val uuid = call.getString(EXTRA_UUID) ?: return
         cancel(context)
@@ -88,7 +94,8 @@ object MMCallsIncomingCall {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val caller = Person.Builder().setName(callerName).setImportant(true).build()
+        currentAvatar = avatar
+        val caller = Person.Builder().setName(callerName).setIcon(MMCallsAvatars.icon(avatar)).setImportant(true).build()
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(appIcon(context))
             .setContentTitle(callerName)
@@ -101,6 +108,7 @@ object MMCallsIncomingCall {
             .setAutoCancel(false)
             .setContentIntent(contentIntent)
             .setFullScreenIntent(fullScreenIntent, true)
+            .setLargeIcon(avatar)
             .setTimeoutAfter(RING_TIMEOUT_MS)
             .build()
         // Loop the channel ringtone until the notification goes away.
@@ -120,6 +128,7 @@ object MMCallsIncomingCall {
             return false
         }
         currentUuid = null
+        currentAvatar = null
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
         context.sendBroadcast(Intent(ACTION_CANCELLED).setPackage(context.packageName))
         return true

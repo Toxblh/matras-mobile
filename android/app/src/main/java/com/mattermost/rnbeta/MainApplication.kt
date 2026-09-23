@@ -14,6 +14,8 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.common.ReleaseLevel
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.facebook.react.modules.network.OkHttpClientProvider
+import com.mattermost.callsnative.MMCallsAvatars
+import com.mattermost.helpers.CustomPushNotificationHelper
 import com.mattermost.networkclient.RCTOkHttpClientFactory
 import com.mattermost.networkclient.sessionattributes.SessionAttributes
 import com.mattermost.rnshare.ShareWorker
@@ -72,6 +74,9 @@ class MainApplication : Application(), ReactApplication, INotificationsApplicati
         // initialize the session attributes engine.
         SessionAttributes.init(this)
         ShareWorker.getSessionAttributesHeader = SessionAttributes::getOutboundHeader
+
+        // matras: call notifications show avatars through the same cached, authenticated loader.
+        MMCallsAvatars.loader = { ctx, serverUrl, userId -> CustomPushNotificationHelper.userAvatar(ctx, serverUrl, userId, null) }
 
         loadReactNative(this)
         ApplicationLifecycleDispatcher.onApplicationCreate(this)

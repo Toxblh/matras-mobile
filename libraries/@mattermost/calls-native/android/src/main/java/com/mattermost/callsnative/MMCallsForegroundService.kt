@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -32,6 +33,8 @@ class MMCallsForegroundService : Service() {
         const val EXTRA_CHANNEL_DESCRIPTION = "channelDescription"
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
+        const val EXTRA_SERVER_URL = "serverUrl"
+        const val EXTRA_AVATAR_USER_ID = "avatarUserId"
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -45,12 +48,24 @@ class MMCallsForegroundService : Service() {
 
         ensureChannel(channelId, channelName, channelDescription)
 
-        val notification = buildNotification(channelId, title, text)
+        val notification = buildNotification(channelId, title, text, null)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+
+        // matras: the DM partner's avatar arrives after a network fetch; start the service
+        // immediately (Android requires it within seconds) and re-post once we have it.
+        val serverUrl = intent?.getStringExtra(EXTRA_SERVER_URL)
+        val avatarUserId = intent?.getStringExtra(EXTRA_AVATAR_USER_ID)
+        if (!serverUrl.isNullOrEmpty() && !avatarUserId.isNullOrEmpty()) {
+            Thread {
+                val avatar = MMCallsAvatars.load(applicationContext, serverUrl, avatarUserId) ?: return@Thread
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(NOTIFICATION_ID, buildNotification(channelId, title, text, avatar))
+            }.start()
         }
         return START_NOT_STICKY
     }
@@ -71,14 +86,14 @@ class MMCallsForegroundService : Service() {
         }
     }
 
-    private fun buildNotification(channelId: String, title: String, text: String): Notification {
+    private fun buildNotification(channelId: String, title: String, text: String, avatar: Bitmap?): Notification {
         // matras: render as a system ongoing call (timer + Hang up) instead of a plain note.
         val hangUp = PendingIntent.getBroadcast(
             this, 0,
             Intent(this, MMCallsHangUpReceiver::class.java).setAction(MMCallsHangUpReceiver.ACTION_HANG_UP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val callee = Person.Builder().setName(title.ifEmpty { "Mattermost" }).build()
+        val callee = Person.Builder().setName(title.ifEmpty { "Mattermost" }).setIcon(MMCallsAvatars.icon(avatar)).build()
         val launch = packageManager.getLaunchIntentForPackage(packageName)?.let {
             PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         }
@@ -93,6 +108,9 @@ class MMCallsForegroundService : Service() {
             .setStyle(NotificationCompat.CallStyle.forOngoingCall(callee, hangUp))
         if (launch != null) {
             builder.setContentIntent(launch)
+        }
+        if (avatar != null) {
+            builder.setLargeIcon(avatar)
         }
         return builder.build()
     }

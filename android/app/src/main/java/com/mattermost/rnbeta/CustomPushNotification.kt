@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
+import com.mattermost.callsnative.MMCallsAvatars
 import com.mattermost.callsnative.MMCallsIncomingCall
 import com.mattermost.helpers.CustomPushNotificationHelper
 import com.mattermost.helpers.DatabaseHelper
@@ -178,7 +179,9 @@ class CustomPushNotification(
         val contentIntent = NotificationIntentAdapter.createPendingNotificationIntent(mContext, mNotificationProps)
         val declineIntent = CallActionReceiver.declineIntent(mContext, call)
 
-        MMCallsIncomingCall.show(mContext, call, contentIntent, answerIntent, declineIntent)
+        // Runs inside the push coroutine, so the blocking fetch is fine; cached after the first call.
+        val avatar = MMCallsAvatars.load(mContext, bundle.getString("server_url"), bundle.getString("sender_id"))
+        MMCallsIncomingCall.show(mContext, call, contentIntent, answerIntent, declineIntent, avatar)
         if (isReactInit) {
             // Same event CallKit raises on iOS: JS maps the uuid to the call so WS events
             // (call_end, dismissed elsewhere) can take the ring down.

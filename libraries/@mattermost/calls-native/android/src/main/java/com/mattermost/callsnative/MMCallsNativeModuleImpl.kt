@@ -97,6 +97,8 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
             putExtra(MMCallsForegroundService.EXTRA_CHANNEL_DESCRIPTION, config.getString("channelDescription"))
             putExtra(MMCallsForegroundService.EXTRA_TITLE, config.getString("title"))
             putExtra(MMCallsForegroundService.EXTRA_TEXT, config.getString("text"))
+            if (config.hasKey("serverUrl")) putExtra(MMCallsForegroundService.EXTRA_SERVER_URL, config.getString("serverUrl"))
+            if (config.hasKey("avatarUserId")) putExtra(MMCallsForegroundService.EXTRA_AVATAR_USER_ID, config.getString("avatarUserId"))
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)

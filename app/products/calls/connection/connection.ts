@@ -358,7 +358,7 @@ export async function newConnection(
 
         if (Platform.OS === 'android') {
             // To allow us to use microphone in the background
-            foregroundServiceStart(intl);
+            foregroundServiceStart(intl, serverUrl, channelID);
         }
 
         // Listen for audio route changes on both platforms via calls-native.
