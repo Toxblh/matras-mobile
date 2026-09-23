@@ -112,11 +112,12 @@ describe('init/cleanup', () => {
         expect(CallsNative.onMuteChanged).toHaveBeenCalledTimes(1);
     });
 
-    it('is a no-op on Android', () => {
+    it('subscribes on Android too (matras: incoming-call notification raises the same events)', () => {
         Object.defineProperty(Platform, 'OS', {get: () => 'android'});
         loadAndInit();
-        expect(CallsNative.onVoIPTokenUpdated).not.toHaveBeenCalled();
-        expect(CallsNative.onIncomingCall).not.toHaveBeenCalled();
+        expect(CallsNative.onIncomingCall).toHaveBeenCalledTimes(1);
+        expect(CallsNative.onCallDeclined).toHaveBeenCalledTimes(1);
+        expect(CallsNative.onCallEnded).toHaveBeenCalledTimes(1);
     });
 });
 

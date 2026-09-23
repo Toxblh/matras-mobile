@@ -28,12 +28,12 @@ class MMCallsNativeModule(context: ReactApplicationContext) : ReactContextBaseJa
 
     @ReactMethod
     fun reportConnected(uuid: String?, promise: Promise?) {
-        implementation.reportConnected(promise)
+        implementation.reportConnected(uuid, promise)
     }
 
     @ReactMethod
     fun reportEnded(uuid: String?, reason: String?, promise: Promise?) {
-        implementation.reportEnded(promise)
+        implementation.reportEnded(uuid, promise)
     }
 
     @ReactMethod

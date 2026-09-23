@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.os.Bundle
 import androidx.core.app.NotificationCompat
+import com.mattermost.callsnative.MMCallsIncomingCall
 import com.mattermost.helpers.CustomPushNotificationHelper
 import com.mattermost.helpers.DatabaseHelper
 import com.mattermost.helpers.Network
@@ -29,6 +30,10 @@ class CustomPushNotification(
         jsIoHelper: JsIOHelper
 ) : PushNotification(context, bundle, appLifecycleFacade, appLaunchHelper, jsIoHelper) {
     private val dataHelper = PushNotificationDataHelper(context)
+
+    companion object {
+        private const val SUB_TYPE_CALLS = "calls"
+    }
 
     init {
         try {
@@ -93,6 +98,9 @@ class CustomPushNotification(
 
     override fun onOpened() {
         mNotificationProps?.let {
+            if (it.asBundle().getString("sub_type") == SUB_TYPE_CALLS) {
+                MMCallsIncomingCall.cancel(mContext)
+            }
             digestNotification()
             NotificationHelper.clearChannelOrThreadNotifications(mContext, it.asBundle())
         }
@@ -108,7 +116,13 @@ class CustomPushNotification(
 
         when (type) {
             CustomPushNotificationHelper.PUSH_TYPE_MESSAGE -> {
-                if (!isAppVisible || !isMainActivity) {
+                if (bundle.getString("sub_type") == SUB_TYPE_CALLS) {
+                    // matras: a ringing DM/GM call. In the foreground the in-app banner rings;
+                    // otherwise show the system incoming-call UI instead of a message note.
+                    if (!isAppVisible || !isMainActivity) {
+                        showIncomingCall(bundle, isReactInit)
+                    }
+                } else if (!isAppVisible || !isMainActivity) {
                     val createSummary = channelId?.let {
                         serverUrl?.let {
                             val notificationResult = dataHelper.fetchAndStoreDataForPushNotification(bundle, isReactInit)
@@ -135,6 +149,40 @@ class CustomPushNotification(
 
         if (isReactInit) {
             notifyReceivedToJS()
+        }
+    }
+
+    private fun showIncomingCall(bundle: Bundle, isReactInit: Boolean) {
+        val channelId = bundle.getString("channel_id")
+        if (channelId.isNullOrEmpty()) {
+            return
+        }
+        val serverId = bundle.getString("server_id").orEmpty()
+        val call = Bundle().apply {
+            putString(MMCallsIncomingCall.EXTRA_UUID, MMCallsIncomingCall.uuidFor(serverId, channelId))
+            putString(MMCallsIncomingCall.EXTRA_SERVER_ID, serverId)
+            putString(MMCallsIncomingCall.EXTRA_SERVER_URL, bundle.getString("server_url"))
+            putString(MMCallsIncomingCall.EXTRA_CHANNEL_ID, channelId)
+            putString(MMCallsIncomingCall.EXTRA_POST_ID, bundle.getString("post_id"))
+            putString(MMCallsIncomingCall.EXTRA_THREAD_ID, bundle.getString("root_id"))
+            putString(MMCallsIncomingCall.EXTRA_CALLER_ID, bundle.getString("sender_id"))
+            putString(MMCallsIncomingCall.EXTRA_CALLER_NAME, bundle.getString("sender_name"))
+            putString(MMCallsIncomingCall.EXTRA_CHANNEL_NAME, bundle.getString("channel_name"))
+        }
+
+        // Answer = open the app from this notification with call_action=answer; JS joins the
+        // call and shows the call screen (push_notifications.ts). Tapping the body just opens
+        // the channel, as any message notification would.
+        val answerBundle = Bundle(bundle).apply { putString("call_action", "answer") }
+        val answerIntent = NotificationIntentAdapter.createPendingNotificationIntent(mContext, createProps(answerBundle))
+        val contentIntent = NotificationIntentAdapter.createPendingNotificationIntent(mContext, mNotificationProps)
+        val declineIntent = CallActionReceiver.declineIntent(mContext, call)
+
+        MMCallsIncomingCall.show(mContext, call, contentIntent, answerIntent, declineIntent)
+        if (isReactInit) {
+            // Same event CallKit raises on iOS: JS maps the uuid to the call so WS events
+            // (call_end, dismissed elsewhere) can take the ring down.
+            MMCallsIncomingCall.emit(mAppLifecycleFacade.runningReactContext, MMCallsIncomingCall.EVENT_INCOMING_CALL, MMCallsIncomingCall.incomingCallPayload(call))
         }
     }
 

@@ -316,7 +316,7 @@ describe('endNativeCall', () => {
         expect(getNativeCallMapping('uuid-a')).toBeUndefined();
     });
 
-    it('skips when not on iOS', () => {
+    it('also ends the native ring on Android (matras)', () => {
         const originalOS = Platform.OS;
         Object.defineProperty(Platform, 'OS', {get: () => 'android'});
 
@@ -330,7 +330,8 @@ describe('endNativeCall', () => {
 
         Object.defineProperty(Platform, 'OS', {get: () => originalOS});
 
-        expect(CallsNative.reportEnded).not.toHaveBeenCalled();
+        expect(CallsNative.reportEnded).toHaveBeenCalledWith('uuid-a', 'remoteEnded');
+        expect(getNativeCallMapping('uuid-a')).toBeUndefined();
     });
 });
 

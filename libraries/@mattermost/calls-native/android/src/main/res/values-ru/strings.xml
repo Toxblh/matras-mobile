@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calls_incoming_call">Входящий звонок</string>
+    <string name="calls_answer">Ответить</string>
+    <string name="calls_decline">Отклонить</string>
+    <string name="calls_hang_up">Завершить</string>
+    <string name="calls_channel_incoming">Входящие звонки</string>
+</resources>

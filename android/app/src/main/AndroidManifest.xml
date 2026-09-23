@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- matras: full-screen incoming-call ring on a locked screen -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
     <!-- Opt out of react-native-nitro-bg-timer-plus foreground service (Play Store special-use review not needed) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:node="remove" />
@@ -101,6 +103,10 @@
                 android:enabled="true"
                 android:exported="false" />
       <receiver android:name=".NotificationReplyBroadcastReceiver"
+               android:enabled="true"
+               android:exported="false" />
+      <!-- matras: Decline from the incoming-call notification -->
+      <receiver android:name=".CallActionReceiver"
                android:enabled="true"
                android:exported="false" />
       <activity

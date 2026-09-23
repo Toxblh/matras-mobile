@@ -130,9 +130,8 @@ export const endNativeCall = (
     reason: 'unanswered' | 'answeredElsewhere' | 'declinedElsewhere' | 'remoteEnded' | 'failed',
     callId?: string,
 ) => {
-    if (Platform.OS !== 'ios') {
-        return;
-    }
+    // matras: also on Android, where the mapping comes from the incoming-call
+    // notification and reportEnded takes that notification down.
     const uuid = getNativeCallUUIDForCall(serverUrl, channelId, callId);
     if (!uuid) {
         return;

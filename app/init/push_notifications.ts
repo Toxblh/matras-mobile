@@ -21,6 +21,8 @@ import {storeDeviceToken} from '@actions/app/global';
 import {markChannelAsViewed} from '@actions/local/channel';
 import {updateThread} from '@actions/local/thread';
 import {backgroundNotification, openNotification} from '@actions/remote/notifications';
+import {joinCallAndOpenCallScreen} from '@calls/actions/calls';
+import {getCallsConfig} from '@calls/state';
 import {isCallsStartedMessage} from '@calls/utils';
 import {Device, Events, PushNotification, Screens} from '@constants';
 import DatabaseManager from '@database/manager';
@@ -28,10 +30,11 @@ import {DEFAULT_LOCALE, getLocalizedMessage} from '@i18n';
 import {getServerDisplayName} from '@queries/app/servers';
 import {getCurrentChannelId} from '@queries/servers/system';
 import {getIsCRTEnabled, getThreadById} from '@queries/servers/thread';
+import {getCurrentUser} from '@queries/servers/user';
 import EphemeralStore from '@store/ephemeral_store';
 import InAppNotificationStore from '@store/in_app_notification_store';
 import {NavigationStore} from '@store/navigation_store';
-import {isBetaApp} from '@utils/general';
+import {getIntlShape, isBetaApp} from '@utils/general';
 import {isMainActivity, isTablet} from '@utils/helpers';
 import {logDebug, logInfo, logWarning} from '@utils/log';
 import {convertToNotificationData} from '@utils/notification';
@@ -192,12 +195,41 @@ class PushNotificationsSingleton {
                 this.handleInAppNotification(serverUrl, notification);
             } else if (userInteraction && !payload?.userInfo?.local) {
                 // Handle notification tapped
-                openNotification(serverUrl, notification);
+                if (isCallsStartedMessage(payload) && payload?.call_action === 'answer') {
+                    await this.answerCallFromNotification(serverUrl, notification);
+                } else {
+                    openNotification(serverUrl, notification);
+                }
             } else {
                 // Awaited so the caller can keep the app alive until the DB write
                 // completes (see onNotificationReceivedBackground).
                 await backgroundNotification(serverUrl, notification);
             }
+        }
+    };
+
+    // matras: "Answer" on the Android incoming-call notification. Open the channel the way a
+    // tapped notification does (activates the server, loads what's missing), then join the
+    // call and show the call screen. On a cold start the calls plugin config arrives with
+    // the server entry; wait for it briefly so joinCall knows the plugin is there.
+    answerCallFromNotification = async (serverUrl: string, notification: NotificationWithData) => {
+        const channelId = notification.payload?.channel_id;
+        if (!channelId) {
+            return;
+        }
+        await openNotification(serverUrl, notification);
+
+        for (let i = 0; i < 40 && !getCallsConfig(serverUrl).pluginEnabled; i++) {
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((r) => setTimeout(r, 250));
+        }
+
+        const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+        const user = database ? await getCurrentUser(database) : undefined;
+        const intl = getIntlShape(user?.locale);
+        const joined = await joinCallAndOpenCallScreen(intl, serverUrl, channelId);
+        if (!joined) {
+            logWarning('answerCallFromNotification: could not join the call in', channelId);
         }
     };
 

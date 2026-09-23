@@ -192,6 +192,14 @@ android {
     }
 }
 
+// matras: fastlane copies assets/sounds into res/raw at release time; plain gradle builds
+// (local, CI) need the ringtones there too or the calls ring is silent.
+tasks.register('copyCallSounds', Copy) {
+    from "${rootProject.projectDir}/../assets/sounds"
+    into "${projectDir}/src/main/res/raw"
+}
+preBuild.dependsOn copyCallSounds
+
 repositories {
     maven {
         url 'https://maven.google.com'

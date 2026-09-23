@@ -3,6 +3,7 @@ package com.mattermost.callsnative
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
 
 /**
  * Keeps the microphone alive while the user is in a Mattermost call and the
@@ -70,13 +72,28 @@ class MMCallsForegroundService : Service() {
     }
 
     private fun buildNotification(channelId: String, title: String, text: String): Notification {
+        // matras: render as a system ongoing call (timer + Hang up) instead of a plain note.
+        val hangUp = PendingIntent.getBroadcast(
+            this, 0,
+            Intent(this, MMCallsHangUpReceiver::class.java).setAction(MMCallsHangUpReceiver.ACTION_HANG_UP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val callee = Person.Builder().setName(title.ifEmpty { "Mattermost" }).build()
+        val launch = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        }
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(appLauncherIcon())
             .setOngoing(true)
+            .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setStyle(NotificationCompat.CallStyle.forOngoingCall(callee, hangUp))
+        if (launch != null) {
+            builder.setContentIntent(launch)
+        }
         return builder.build()
     }
 

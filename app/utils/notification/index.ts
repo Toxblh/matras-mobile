@@ -38,6 +38,7 @@ export const convertToNotificationData = (notification: Notification, tapped = t
             team_id: payload.team_id,
             type: payload.type,
             sub_type: payload.sub_type,
+            call_action: payload.call_action,
             use_user_icon: payload.use_user_icon,
             version: payload.version,
             isCRTEnabled: typeof payload.is_crt_enabled === 'string' ? payload.is_crt_enabled === 'true' : Boolean(payload.is_crt_enabled),

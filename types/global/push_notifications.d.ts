@@ -37,6 +37,9 @@ interface NotificationData {
     team_id?: string;
     type: string;
     sub_type?: string;
+
+    // matras: 'answer' when the user pressed Answer on the Android incoming-call notification.
+    call_action?: string;
     use_user_icon?: string;
     userInfo?: NotificationUserInfo;
     version: string;

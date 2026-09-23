@@ -58,18 +58,24 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     private var btActive = false
 
     // -------------------------------------------------------------------------
-    // Call UI stubs — iOS-only (Telecom/ConnectionService not yet implemented)
+    // Call UI. matras: the incoming ring is a CallStyle notification
+    // (MMCallsIncomingCall); connected / ended take it down. Outgoing calls
+    // have no system UI on Android yet.
+    // ponytail: no Telecom/ConnectionService; add it if Bluetooth call
+    // buttons or the system in-call chip ever matter.
     // -------------------------------------------------------------------------
 
     fun reportOutgoingCall(promise: Promise?) {
         promise?.resolve(null)
     }
 
-    fun reportConnected(promise: Promise?) {
+    fun reportConnected(uuid: String?, promise: Promise?) {
+        MMCallsIncomingCall.cancel(context, uuid)
         promise?.resolve(null)
     }
 
-    fun reportEnded(promise: Promise?) {
+    fun reportEnded(uuid: String?, promise: Promise?) {
+        MMCallsIncomingCall.cancel(context, uuid)
         promise?.resolve(null)
     }
 
@@ -83,6 +89,8 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
 
     fun foregroundServiceStart(config: ReadableMap?) {
         if (config == null) return
+        // Joining a call always starts the service; whatever was ringing is answered now.
+        MMCallsIncomingCall.cancel(context)
         val intent = Intent(context, MMCallsForegroundService::class.java).apply {
             putExtra(MMCallsForegroundService.EXTRA_CHANNEL_ID, config.getString("channelId"))
             putExtra(MMCallsForegroundService.EXTRA_CHANNEL_NAME, config.getString("channelName"))

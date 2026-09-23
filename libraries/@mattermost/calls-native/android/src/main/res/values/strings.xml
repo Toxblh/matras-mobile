@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="calls_incoming_call">Incoming call</string>
+    <string name="calls_answer">Answer</string>
+    <string name="calls_decline">Decline</string>
+    <string name="calls_hang_up">Hang up</string>
+    <string name="calls_channel_incoming">Incoming calls</string>
+</resources>

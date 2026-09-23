@@ -42,12 +42,8 @@ class CallsNativeSingleton {
     subscriptions?: EmitterSubscription[];
 
     init() {
-        if (Platform.OS !== 'ios') {
-            // The Android side of @mattermost/calls-native is a no-op
-            // stub for Phase 1.
-            return;
-        }
-
+        // matras: Android raises the same events from its incoming-call notification
+        // (MMCallsIncomingCall), so both platforms subscribe.
         this.subscriptions?.forEach((s) => s.remove());
         this.subscriptions = [
             CallsNative.onVoIPTokenUpdated(this.onVoIPTokenUpdated),
@@ -192,6 +188,11 @@ class CallsNativeSingleton {
         const mapping = getNativeCallMapping(uuid);
         clearNativeCallMapping(uuid);
         if (!mapping) {
+            // matras: on Android the only unmapped CallEnded is "Hang up" on the
+            // ongoing-call notification, which always means the current call.
+            if (Platform.OS === 'android' && getCurrentCall()) {
+                leaveCall();
+            }
             return;
         }
 

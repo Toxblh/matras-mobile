@@ -22,11 +22,11 @@ class MMCallsNativeModule(reactContext: ReactApplicationContext) : NativeMMCalls
     }
 
     override fun reportConnected(uuid: String?, promise: Promise?) {
-        implementation.reportConnected(promise)
+        implementation.reportConnected(uuid, promise)
     }
 
     override fun reportEnded(uuid: String?, reason: String?, promise: Promise?) {
-        implementation.reportEnded(promise)
+        implementation.reportEnded(uuid, promise)
     }
 
     override fun setMuted(uuid: String?, muted: Boolean, promise: Promise?) {
