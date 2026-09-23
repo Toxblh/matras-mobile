@@ -45,6 +45,27 @@ jobs:
       - name: npm ci
         run: npm ci --no-audit --no-fund
 
+      - name: предзагрузка react-android и hermes-android в ~/.m2
+        # Эти AAR по 100-240 МБ; gradle на раннере ALS стабильно ловит на них
+        # Read timed out от Maven Central. curl с повторами и докачкой справляется,
+        # а mavenLocal() в android/build.gradle стоит первым.
+        run: |
+          set -Eeuo pipefail
+          rn="$(node -p "require('react-native/package.json').version")"
+          hermes="$(node -p "require('react-native/package.json').dependencies['hermes-compiler']")"
+          fetch() { # group artifact version
+            local dir="$HOME/.m2/repository/${1//.//}/$2/$3" url="https://repo.maven.apache.org/maven2/${1//.//}/$2/$3"
+            mkdir -p "$dir"
+            for f in "$2-$3.pom" "$2-$3.module" "$2-$3-release.aar"; do
+              echo "==> $f"
+              curl -fL --retry 10 --retry-all-errors --retry-delay 5 -C - --speed-limit 10000 --speed-time 60 \
+                -o "$dir/$f" "$url/$f"
+            done
+          }
+          fetch com.facebook.react react-android "$rn"
+          fetch com.facebook.hermes hermes-android "$hermes"
+          du -sh "$HOME/.m2/repository/com/facebook"/*/*/*
+
       - name: tsc + lint
         run: npm run check
 
