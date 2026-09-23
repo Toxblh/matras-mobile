@@ -17,6 +17,7 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -53,6 +54,27 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     }
 
     private val ringtoneVibratePattern = longArrayOf(0, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000)
+
+    // matras: screen off when held to the ear, like the phone dialer. Held only while the
+    // call audio goes to the earpiece; speaker, headset and Bluetooth leave the screen on.
+    private var proximityLock: PowerManager.WakeLock? = null
+
+    private fun updateProximity(selectedRoute: String) {
+        val wanted = audioManager != null && selectedRoute == "EARPIECE"
+        val lock = proximityLock ?: run {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) return
+            pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "matras:call-proximity")
+                .apply { setReferenceCounted(false) }
+                .also { proximityLock = it }
+        }
+        if (wanted && !lock.isHeld) {
+            lock.acquire(4 * 60 * 60 * 1000L)
+        } else if (!wanted && lock.isHeld) {
+            // Wait until the phone leaves the ear so the screen doesn't flash on against it.
+            lock.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+        }
+    }
 
     // Track whether the user selected Bluetooth so getAudioRoute can reflect it.
     private var btActive = false
@@ -185,6 +207,7 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
 
         unregisterAudioReceivers()
         audioManager = null
+        updateProximity("NONE")
         promise?.resolve(null)
     }
 
@@ -469,9 +492,11 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     }
 
     private fun emitAudioRouteChanged() {
+        val route = buildAudioRouteMap()
+        updateProximity(route.getString("selectedAudioDevice") ?: "NONE")
         try {
             context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                ?.emit(EVENT_AUDIO_ROUTE_CHANGED, buildAudioRouteMap())
+                ?.emit(EVENT_AUDIO_ROUTE_CHANGED, route)
         } catch (_: Exception) {
             // JS bridge not yet ready — ignore.
         }

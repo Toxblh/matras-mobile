@@ -97,7 +97,7 @@ object MMCallsIncomingCall {
         currentAvatar = avatar
         val caller = Person.Builder().setName(callerName).setIcon(MMCallsAvatars.icon(avatar)).setImportant(true).build()
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(appIcon(context))
+            .setSmallIcon(MMCallsAvatars.smallIcon(context))
             .setContentTitle(callerName)
             .setContentText(channelName.ifEmpty { context.getString(R.string.calls_incoming_call) })
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, declineIntent, answerIntent))
@@ -186,6 +186,4 @@ object MMCallsIncomingCall {
         }
     }
 
-    private fun appIcon(context: Context): Int =
-        context.packageManager.getApplicationInfo(context.packageName, PackageManager.GET_META_DATA).icon
 }

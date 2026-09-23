@@ -279,32 +279,28 @@ describe('CallScreen', () => {
         expect(navigateToScreen).toHaveBeenCalledWith(Screens.CALL_PARTICIPANTS);
     });
 
-    it('should hide the camera controls and the self view when the server has video disabled', () => {
+    // matras: video ignores the server EnableVideo flag (it doesn't reach every mobile client).
+    it('should show the camera controls and the self view even when the server reports video disabled', () => {
         const props = getBaseProps();
         props.currentCall = {...props.currentCall!, videoOn: true, myVideoURL: 'url://self'};
 
         const {queryByTestId} = renderScreen(props);
 
-        expect(queryByTestId('call_screen.video.toggle')).toBeNull();
-        expect(queryByTestId('call_screen.video.switch_camera')).toBeNull();
-        expect(queryByTestId('call_screen.video.self_view')).toBeNull();
+        expect(queryByTestId('call_screen.video.toggle')).not.toBeNull();
+        expect(queryByTestId('call_screen.video.self_view')).not.toBeNull();
     });
 
-    it('should stop the local camera when the server disables video mid-call', () => {
+    it('should keep the local camera running when the server flag flips off mid-call', () => {
         mockCallsConfig.EnableVideo = true;
 
         const props = getBaseProps();
         props.currentCall = {...props.currentCall!, videoOn: true, myVideoURL: 'url://self'};
 
         const {rerender} = renderScreen(props);
-        expect(stopVideo).not.toHaveBeenCalled();
-
-        // Nothing pushes an EnableVideo change into the connection, so without
-        // this the capture device keeps running with no UI left to stop it.
         mockCallsConfig.EnableVideo = false;
         rerender(<CallScreen {...props}/>);
 
-        expect(stopVideo).toHaveBeenCalled();
+        expect(stopVideo).not.toHaveBeenCalled();
     });
 
     it('should not act on the camera controls before the call is connected', () => {

@@ -116,7 +116,7 @@ class MMCallsForegroundService : Service() {
         val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(appLauncherIcon())
+            .setSmallIcon(MMCallsAvatars.smallIcon(this))
             .setOngoing(true)
             .setUsesChronometer(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -131,8 +131,4 @@ class MMCallsForegroundService : Service() {
         return builder.build()
     }
 
-    private fun appLauncherIcon(): Int {
-        val info = packageManager.getApplicationInfo(packageName, PackageManager.GET_META_DATA)
-        return info.icon
-    }
 }

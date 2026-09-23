@@ -11,6 +11,8 @@
     <!-- matras: the incoming-call notification opens a full-screen ring on a locked screen. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- matras: proximity sensor turns the screen off at the ear during a call. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application>
         <!-- Keeps the microphone (and, while a video call is active, the

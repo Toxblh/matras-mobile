@@ -25,4 +25,16 @@ object MMCallsAvatars {
     }
 
     fun icon(bitmap: Bitmap?): IconCompat? = bitmap?.let { IconCompat.createWithBitmap(it) }
+
+    /**
+     * Status-bar icon for call notifications. The launcher icon is full-colour, so the status
+     * bar and the call chip render it as a white blob; the app's monochrome push icon
+     * (mipmap/ic_notification) is what the system expects there.
+     */
+    fun smallIcon(context: Context): Int {
+        val res = context.resources
+        val id = res.getIdentifier("ic_notification", "mipmap", context.packageName)
+            .takeIf { it != 0 } ?: res.getIdentifier("ic_notification", "drawable", context.packageName)
+        return if (id != 0) id else context.applicationInfo.icon
+    }
 }

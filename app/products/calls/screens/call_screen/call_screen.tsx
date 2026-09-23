@@ -351,7 +351,7 @@ const CallScreen = ({
     const theme = useTheme();
     const {width, height} = useWindowDimensions();
     const serverUrl = useServerUrl();
-    const {EnableRecordings, EnableTranscriptions, EnableVideo} = useCallsConfig(serverUrl);
+    const {EnableRecordings, EnableTranscriptions} = useCallsConfig(serverUrl);
     usePermissionsChecker(micPermissionsGranted);
     const incomingCalls = useIncomingCalls();
     const {hostControlsAvailable, onPress, openProfile} = useHostMenus();
@@ -382,7 +382,10 @@ const CallScreen = ({
     const displayMySession = mySession ?? pendingMySession;
     const micPermissionsError = !micPermissionsGranted && !currentCall?.micPermissionsErrorDismissed;
     const screenShareOn = Boolean(currentCall?.screenOn);
-    const isVideoAllowed = Boolean(EnableVideo);
+
+    // matras: camera video is always available. The server's EnableVideo flag does not reach
+    // the mobile client on every plugin version, so the button stayed hidden with video on.
+    const isVideoAllowed = true;
     const isLandscape = width > height;
     const smallerAvatar = isLandscape || screenShareOn || showCC || contentOverflow;
     const avatarSize = smallerAvatar ? avatarM : avatarL;
