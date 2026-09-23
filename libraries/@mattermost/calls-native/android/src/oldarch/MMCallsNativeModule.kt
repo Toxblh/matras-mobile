@@ -80,4 +80,14 @@ class MMCallsNativeModule(context: ReactApplicationContext) : ReactContextBaseJa
     fun stopRingtone(promise: Promise?) {
         implementation.stopRingtone(promise)
     }
+
+    @ReactMethod
+    fun canUseFullScreenIntent(promise: Promise?) {
+        implementation.canUseFullScreenIntent(promise)
+    }
+
+    @ReactMethod
+    fun openFullScreenIntentSettings() {
+        implementation.openFullScreenIntentSettings()
+    }
 }

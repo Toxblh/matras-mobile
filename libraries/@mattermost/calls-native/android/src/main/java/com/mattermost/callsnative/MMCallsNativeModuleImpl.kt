@@ -302,6 +302,26 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
         }
     }
 
+    fun canUseFullScreenIntent(promise: Promise?) {
+        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager).canUseFullScreenIntent()
+        } else {
+            true
+        }
+        promise?.resolve(allowed)
+    }
+
+    fun openFullScreenIntentSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            Intent(android.provider.Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                .setData(android.net.Uri.parse("package:${context.packageName}"))
+        } else {
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     fun stopRingtone(promise: Promise?) {
         stopRingtoneInternal()
         promise?.resolve(null)

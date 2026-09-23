@@ -8,7 +8,26 @@ import CallsNative, {
     type VoIPTokenUpdated,
 } from '@mattermost/calls-native';
 import {defineMessages} from 'react-intl';
-import {Platform, type EmitterSubscription} from 'react-native';
+import {Alert, Platform, type EmitterSubscription} from 'react-native';
+
+const fullScreenMessages = defineMessages({
+    title: {
+        id: 'mobile.calls.full_screen_permission.title',
+        defaultMessage: 'Allow full-screen calls',
+    },
+    body: {
+        id: 'mobile.calls.full_screen_permission.body',
+        defaultMessage: 'Android shows incoming calls only as a small notification until you allow full-screen notifications for this app.',
+    },
+    open: {
+        id: 'mobile.calls.full_screen_permission.open',
+        defaultMessage: 'Open settings',
+    },
+    later: {
+        id: 'mobile.calls.full_screen_permission.later',
+        defaultMessage: 'Not now',
+    },
+});
 
 defineMessages({
     incomingCallPlaceholder: {
@@ -32,6 +51,7 @@ import {
 } from '@calls/state';
 import {Device} from '@constants';
 import DatabaseManager from '@database/manager';
+import {DEFAULT_LOCALE} from '@i18n';
 import WebsocketManager from '@managers/websocket_manager';
 import {getServerByIdentifier} from '@queries/app/servers';
 import {getCurrentUser} from '@queries/servers/user';
@@ -44,6 +64,9 @@ class CallsNativeSingleton {
     init() {
         // matras: Android raises the same events from its incoming-call notification
         // (MMCallsIncomingCall), so both platforms subscribe.
+        if (Platform.OS === 'android') {
+            this.askForFullScreenCalls();
+        }
         this.subscriptions?.forEach((s) => s.remove());
         this.subscriptions = [
             CallsNative.onVoIPTokenUpdated(this.onVoIPTokenUpdated),
@@ -54,6 +77,27 @@ class CallsNativeSingleton {
             CallsNative.onMuteChanged(this.onMuteChanged),
         ];
     }
+
+    // matras: without this permission the Android incoming call is only a heads-up
+    // notification. Asked once per app launch while it is missing.
+    private askForFullScreenCalls = async () => {
+        try {
+            if (await CallsNative.canUseFullScreenIntent()) {
+                return;
+            }
+        } catch {
+            return;
+        }
+        const intl = getIntlShape(DEFAULT_LOCALE);
+        Alert.alert(
+            intl.formatMessage(fullScreenMessages.title),
+            intl.formatMessage(fullScreenMessages.body),
+            [
+                {text: intl.formatMessage(fullScreenMessages.later), style: 'cancel'},
+                {text: intl.formatMessage(fullScreenMessages.open), onPress: () => CallsNative.openFullScreenIntentSettings()},
+            ],
+        );
+    };
 
     cleanup() {
         this.subscriptions?.forEach((s) => s.remove());

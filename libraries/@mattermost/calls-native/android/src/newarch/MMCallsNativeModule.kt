@@ -64,4 +64,12 @@ class MMCallsNativeModule(reactContext: ReactApplicationContext) : NativeMMCalls
     override fun stopRingtone(promise: Promise?) {
         implementation.stopRingtone(promise)
     }
+
+    override fun canUseFullScreenIntent(promise: Promise?) {
+        implementation.canUseFullScreenIntent(promise)
+    }
+
+    override fun openFullScreenIntentSettings() {
+        implementation.openFullScreenIntentSettings()
+    }
 }

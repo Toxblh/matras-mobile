@@ -134,6 +134,11 @@ export interface Spec extends TurboModule {
     // the vibration and plays the tone on the voice-call stream so it follows the call's audio route; iOS ignores it.
     startRingtone: (name: string, seconds: number, isRingback: boolean) => Promise<void>;
     stopRingtone: () => Promise<void>;
+
+    // matras: Android 14+ may deny full-screen notifications to apps not installed from
+    // Play; then the incoming call is only a heads-up. iOS resolves true (CallKit).
+    canUseFullScreenIntent: () => Promise<boolean>;
+    openFullScreenIntentSettings: () => void;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('MMCallsNative');

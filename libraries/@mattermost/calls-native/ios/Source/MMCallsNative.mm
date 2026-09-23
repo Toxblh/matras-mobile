@@ -141,6 +141,15 @@ RCT_EXPORT_METHOD(stopRingtone:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject) {
     [self stopRingtoneImpl:resolve reject:reject];
 }
+
+// matras: CallKit always gets the full-screen call UI on iOS.
+RCT_EXPORT_METHOD(canUseFullScreenIntent:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject) {
+    resolve(@YES);
+}
+
+RCT_EXPORT_METHOD(openFullScreenIntentSettings) {
+}
 #endif
 
 #ifdef RCT_NEW_ARCH_ENABLED
@@ -219,6 +228,14 @@ RCT_EXPORT_METHOD(stopRingtone:(RCTPromiseResolveBlock)resolve
 - (void)stopRingtone:(RCTPromiseResolveBlock)resolve
               reject:(RCTPromiseRejectBlock)reject {
     [self stopRingtoneImpl:resolve reject:reject];
+}
+
+- (void)canUseFullScreenIntent:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject {
+    resolve(@YES);
+}
+
+- (void)openFullScreenIntentSettings {
 }
 #endif
 
