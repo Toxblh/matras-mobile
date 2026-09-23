@@ -93,6 +93,23 @@ export const filterAndSortMyChannels = ([myChannels, channels, notifyProps]: Fil
 const sqliteLikeStringRegex = xRegExp('[^\\p{L}\\p{Nd}]', 'g');
 export const sanitizeLikeString = (value: string) => value.replace(sqliteLikeStringRegex, '_');
 
+// matras: SQLite's LIKE folds case for ASCII only, so a Cyrillic (or any non-ASCII) term never
+// matched "Иванов" when typed as "иванов". Match every spelling a person actually types: as typed,
+// all lower, all upper, Capitalized.
+// ponytail: no Unicode case folding without ICU; these four variants cover real-world name and
+// channel capitalisation. Filter in JS if mixed-case non-ASCII names (e.g. "МакДональд") matter.
+export const likeVariants = (value: string) => {
+    const lower = value.toLowerCase();
+    return [...new Set([value, lower, value.toUpperCase(), lower.charAt(0).toUpperCase() + lower.slice(1)])];
+};
+
+// Raw SQL fragment: `column` LIKE any case variant of `term`; prefix=true matches from the start
+// ('term%'), otherwise anywhere ('%term%'). The term is sanitized for LIKE here.
+export const sqlLikeTerm = (column: string, term: string, prefix = false) => {
+    const start = prefix ? '' : '%';
+    return '(' + likeVariants(sanitizeLikeString(term)).map((v) => `${column} LIKE '${start}${v}%'`).join(' OR ') + ')';
+};
+
 export function removeDuplicatesModels(array: Model[]) {
     if (!array.length) {
         return array;

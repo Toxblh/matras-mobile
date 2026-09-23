@@ -9,7 +9,7 @@ import {map as map$, switchMap, distinctUntilChanged, combineLatestWith, map} fr
 
 import {General, Permissions} from '@constants';
 import {MM_TABLES} from '@constants/database';
-import {sanitizeLikeString} from '@helpers/database';
+import {likeVariants, sanitizeLikeString, sqlLikeTerm} from '@helpers/database';
 import EphemeralStore from '@store/ephemeral_store';
 import {isDefaultChannel, isDMorGM} from '@utils/channel';
 import {hasPermission} from '@utils/role';
@@ -615,12 +615,12 @@ export function queryMyRecentChannels(database: Database, take: number) {
 
 export const observeDirectChannelsByTerm = (database: Database, term: string, take = 20, matchStart = false) => {
     const onlyDMs = term.startsWith('@') ? "AND c.type='D'" : '';
-    const value = sanitizeLikeString(term.startsWith('@') ? term.substring(1) : term);
-    let username = `u.username LIKE '${value}%'`;
-    let displayname = `c.display_name LIKE '${value}%'`;
+    const value = term.startsWith('@') ? term.substring(1) : term;
+    let username = sqlLikeTerm('u.username', value, true);
+    let displayname = sqlLikeTerm('c.display_name', value, true);
     if (!matchStart) {
-        username = `u.username LIKE '%${value}%' AND u.username NOT LIKE '${value}%'`;
-        displayname = `(c.display_name LIKE '%${value}%' AND c.display_name NOT LIKE '${value}%')`;
+        username = `(${sqlLikeTerm('u.username', value)} AND NOT ${sqlLikeTerm('u.username', value, true)})`;
+        displayname = `(${sqlLikeTerm('c.display_name', value)} AND NOT ${sqlLikeTerm('c.display_name', value, true)})`;
     }
     const currentUserId = observeCurrentUserId(database);
     return currentUserId.pipe(
@@ -641,14 +641,19 @@ export const observeDirectChannelsByTerm = (database: Database, term: string, ta
 export const observeNotDirectChannelsByTerm = (database: Database, term: string, take = 20, matchStart = false) => {
     const teammateNameSetting = observeTeammateNameDisplay(database);
 
-    const value = sanitizeLikeString(term.startsWith('@') ? term.substring(1) : term);
-    let username = `u.username LIKE '${value}%'`;
-    let nickname = `u.nickname LIKE '${value}%'`;
-    let displayname = `(u.first_name || ' ' || u.last_name) LIKE '${value}%'`;
+    const value = term.startsWith('@') ? term.substring(1) : term;
+    const fullName = "(u.first_name || ' ' || u.last_name)";
+    let username = sqlLikeTerm('u.username', value, true);
+    let nickname = sqlLikeTerm('u.nickname', value, true);
+    let displayname = sqlLikeTerm(fullName, value, true);
+
+    // matras: the web app finds people by e-mail too; the local query never looked at the column,
+    // so profiles the server returned for an e-mail search were stored but never shown.
+    const email = sqlLikeTerm('u.email', value, true);
     if (!matchStart) {
-        username = `(u.username LIKE '%${value}%' AND u.username NOT LIKE '${value}%')`;
-        nickname = `(u.nickname LIKE '%${value}%' AND u.nickname NOT LIKE '${value}%')`;
-        displayname = `((u.first_name || ' ' || u.last_name) LIKE '%${value}%' AND (u.first_name || ' ' || u.last_name) NOT LIKE '${value}%')`;
+        username = `(${sqlLikeTerm('u.username', value)} AND NOT ${sqlLikeTerm('u.username', value, true)})`;
+        nickname = `(${sqlLikeTerm('u.nickname', value)} AND NOT ${sqlLikeTerm('u.nickname', value, true)})`;
+        displayname = `(${sqlLikeTerm(fullName, value)} AND NOT ${sqlLikeTerm(fullName, value, true)})`;
     }
 
     return teammateNameSetting.pipe(
@@ -670,7 +675,7 @@ export const observeNotDirectChannelsByTerm = (database: Database, term: string,
                 Q.unsafeSqlQuery(`SELECT DISTINCT u.* FROM User u
                 LEFT JOIN ChannelMembership cm ON cm.user_id=u.id
                 LEFT JOIN Channel c ON c.id=cm.id AND c.type='${General.DM_CHANNEL}'
-                WHERE cm.user_id IS NULL AND (${displayname} OR ${username} OR ${nickname}) AND u.delete_at=0
+                WHERE cm.user_id IS NULL AND (${displayname} OR ${username} OR ${nickname} OR ${email}) AND u.delete_at=0
                 ${sortBy} LIMIT ${take}`),
             ).observe();
         }),
@@ -682,10 +687,9 @@ export const observeJoinedChannelsByTerm = (database: Database, term: string, ta
         return of$([]);
     }
 
-    const value = sanitizeLikeString(term);
-    let displayname = `c.display_name LIKE '${value}%'`;
+    let displayname = sqlLikeTerm('c.display_name', term, true);
     if (!matchStart) {
-        displayname = `c.display_name LIKE '%${value}%' AND c.display_name NOT LIKE '${value}%'`;
+        displayname = `(${sqlLikeTerm('c.display_name', term)} AND NOT ${sqlLikeTerm('c.display_name', term, true)})`;
     }
     return database.get<MyChannelModel>(MY_CHANNEL).query(
         Q.unsafeSqlQuery(`SELECT DISTINCT my.* FROM ${MY_CHANNEL} my
@@ -700,13 +704,12 @@ export const observeArchiveChannelsByTerm = (database: Database, term: string, t
         return of$([]);
     }
 
-    const value = sanitizeLikeString(term);
-    const displayname = `%${value}%`;
+    const variants = likeVariants(sanitizeLikeString(term));
     return database.get<MyChannelModel>(MY_CHANNEL).query(
         Q.on(CHANNEL, Q.and(
             Q.where('delete_at', Q.gt(0)),
             Q.where('team_id', Q.notEq('')),
-            Q.where('display_name', Q.like(displayname)),
+            Q.or(...variants.map((v) => Q.where('display_name', Q.like(`%${v}%`)))),
         )),
         Q.sortBy('last_viewed_at'),
         Q.take(take),
