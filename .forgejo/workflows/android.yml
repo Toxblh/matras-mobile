@@ -28,6 +28,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: node из .nvmrc + требования solidarity
+        # В образе Node 22/npm 10, а package-lock собран npm 11 (Node 24) — npm ci падает
+        # с «Missing: typescript from lock file». preinstall (npx solidarity) ещё требует
+        # emulator в PATH и git user.email; эмулятор CI не нужен, хватает заглушки.
+        run: |
+          set -Eeuo pipefail
+          v="$(tr -dc '0-9.' < .nvmrc)"
+          curl -fsSL "https://nodejs.org/dist/v${v}/node-v${v}-linux-x64.tar.gz" -o /tmp/node.tgz
+          mkdir -p /opt/node && tar -C /opt/node --strip-components=1 -xzf /tmp/node.tgz
+          echo "/opt/node/bin" >> "$GITHUB_PATH"
+          command -v emulator >/dev/null || { printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/emulator; chmod +x /usr/local/bin/emulator; }
+          git config --global user.email ci@matras.local
+          /opt/node/bin/node -v; /opt/node/bin/npm -v; echo "ANDROID_HOME=$ANDROID_HOME"
+
       - name: npm ci
         run: npm ci --no-audit --no-fund
 
@@ -70,6 +84,7 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
+          command -v jq >/dev/null || { apt-get update -qq && apt-get install -y -qq jq; }
           token="${RELEASE_TOKEN:-$GH_TOKEN}"
           version="$(sed -nE 's/.*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -1)"
           short="${COMMIT_SHA:0:8}"
