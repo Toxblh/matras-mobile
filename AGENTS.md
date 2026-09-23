@@ -49,6 +49,8 @@ git push origin --tags && git push github --tags
   emulator -avd pixel &          # эмулятор
   npm run android                # debug-сборка и запуск
   ```
+  На этой машине 15 ГБ RAM и ~11 ГБ занято рабочим столом: gradle и эмулятор запускать по очереди,
+  gradle ограничивать: `./gradlew assembleDebug -PreactNativeArchitectures=x86_64 -Dorg.gradle.jvmargs=-Xmx2g -Dkotlin.daemon.jvm.options=-Xmx1g -Dorg.gradle.workers.max=2 --no-parallel`.
 
 ---
 
