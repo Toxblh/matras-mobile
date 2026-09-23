@@ -72,7 +72,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           cd android
-          ./gradlew assembleRelease --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a,x86_64
+          # Раннер ALS временами ловит Read timed out от Maven Central: длинные таймауты
+          # и одна повторная попытка (скачанное уже в кэше gradle).
+          net="-Dorg.gradle.internal.http.socketTimeout=180000 -Dorg.gradle.internal.http.connectionTimeout=180000 -Dorg.gradle.internal.repository.max.retries=5"
+          build() { ./gradlew assembleRelease --no-daemon --console=plain -PreactNativeArchitectures=arm64-v8a,x86_64 $net; }
+          build || { echo "::warning::gradle упал, повтор"; build; }
           ls -la app/build/outputs/apk/release/
 
       - name: publish forgejo release
