@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **Форк Matras.** Сначала прочитай [AGENTS.md](./AGENTS.md): ветки, обновление за upstream, правила коммитов.
+
 ## Project Overview
 
 React Native 0.83.9 with **New Architecture enabled** (RCT_NEW_ARCH_ENABLED=1).
