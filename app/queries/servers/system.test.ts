@@ -9,6 +9,7 @@ import {SYSTEM_IDENTIFIERS} from '@constants/database';
 import DatabaseManager from '@database/manager';
 
 import {
+    MATRAS_LICENSE,
     getCurrentChannelId, getCurrentTeamId, getCurrentUserId, getPushVerificationStatus,
     getCommonSystemValues, getConfig, getConfigValue, getConfigBooleanValue, getDisconnectedSince, getLastGlobalDataRetentionRun,
     getLastBoRPostCleanupRun, getGlobalDataRetentionPolicy, getGranularDataRetentionPolicies,
@@ -116,32 +117,33 @@ describe('observeIsFreeEdition', () => {
         await DatabaseManager.destroyServerDatabase(serverUrl);
     });
 
-    it('should return true when no license is present', (done) => {
+    // matras: the license is built in, so the app is never the free edition.
+    it('should return false when no license is present', (done) => {
         observeIsFreeEdition(database).subscribe((value) => {
-            expect(value).toBe(true);
+            expect(value).toBe(false);
             done();
         });
     });
 
-    it('should return true when IsLicensed is false', (done) => {
+    it('should return false when the server says IsLicensed is false', (done) => {
         operator.handleSystem({
             systems: [{id: SYSTEM_IDENTIFIERS.LICENSE, value: {IsLicensed: 'false'}}],
             prepareRecordsOnly: false,
         }).then(() => {
             observeIsFreeEdition(database).subscribe((value) => {
-                expect(value).toBe(true);
+                expect(value).toBe(false);
                 done();
             });
         });
     });
 
-    it('should return true when licensed with Entry SKU', (done) => {
+    it('should return false when the server is licensed with Entry SKU', (done) => {
         operator.handleSystem({
             systems: [{id: SYSTEM_IDENTIFIERS.LICENSE, value: {IsLicensed: 'true', SkuShortName: License.SKU_SHORT_NAME.Entry}}],
             prepareRecordsOnly: false,
         }).then(() => {
             observeIsFreeEdition(database).subscribe((value) => {
-                expect(value).toBe(true);
+                expect(value).toBe(false);
                 done();
             });
         });
@@ -269,20 +271,21 @@ describe('observeIsMinimumLicenseTier', () => {
         await DatabaseManager.destroyServerDatabase(serverUrl);
     });
 
-    it('should return false if no license is present', (done) => {
+    // matras: the built-in license is Enterprise Advanced, so every tier check passes.
+    it('should return true even if no license is present', (done) => {
         operator.handleConfigs({configs: [
             {id: 'BuildEnterpriseReady', value: 'true'},
         ],
         prepareRecordsOnly: false,
         configsToDelete: []}).then(() => {
             observeIsMinimumLicenseTier(database, License.SKU_SHORT_NAME.Professional).subscribe((isMinimumTier) => {
-                expect(isMinimumTier).toBe(false);
+                expect(isMinimumTier).toBe(true);
                 done();
             });
         });
     });
 
-    it('should return false if license tier is below the required tier', (done) => {
+    it('should return true even if the server license tier is below the required tier', (done) => {
         operator.handleConfigs({configs: [
             {id: 'BuildEnterpriseReady', value: 'true'},
         ],
@@ -295,7 +298,7 @@ describe('observeIsMinimumLicenseTier', () => {
                 prepareRecordsOnly: false,
             }).then(() => {
                 observeIsMinimumLicenseTier(database, License.SKU_SHORT_NAME.Professional).subscribe((isMinimumTier) => {
-                    expect(isMinimumTier).toBe(false);
+                    expect(isMinimumTier).toBe(true);
                     done();
                 });
             });
@@ -494,14 +497,14 @@ describe('system query functions', () => {
         expect(await getGranularDataRetentionPolicies(database)).toBeUndefined();
     });
 
-    it('getIsDataRetentionEnabled returns null when no license', async () => {
-        expect(await getIsDataRetentionEnabled(database)).toBeNull();
+    it('getIsDataRetentionEnabled returns false when message deletion is not configured (matras: license is built in)', async () => {
+        expect(await getIsDataRetentionEnabled(database)).toBe(false);
     });
 
-    it('getIsDataRetentionEnabled returns false when DataRetention not in license', async () => {
+    it('getIsDataRetentionEnabled ignores the server license (matras)', async () => {
         await operator.handleSystem({systems: [{id: SYSTEM_IDENTIFIERS.LICENSE, value: {IsLicensed: 'true', DataRetention: 'false'}}], prepareRecordsOnly: false});
         await operator.handleConfigs({configs: [{id: 'DataRetentionEnableMessageDeletion', value: 'true'}], configsToDelete: [], prepareRecordsOnly: false});
-        expect(await getIsDataRetentionEnabled(database)).toBe(false);
+        expect(await getIsDataRetentionEnabled(database)).toBe(true);
     });
 
     it('getIsDataRetentionEnabled returns true when all conditions met', async () => {
@@ -510,14 +513,15 @@ describe('system query functions', () => {
         expect(await getIsDataRetentionEnabled(database)).toBe(true);
     });
 
-    it('getLicense returns undefined when not set', async () => {
-        expect(await getLicense(database)).toBeUndefined();
+    it('getLicense returns the built-in license when nothing is stored (matras)', async () => {
+        expect(await getLicense(database)).toEqual(MATRAS_LICENSE);
     });
 
-    it('getLicense returns stored license', async () => {
-        const license = {IsLicensed: 'true', SkuShortName: 'enterprise'};
+    it('getLicense ignores the stored server license (matras)', async () => {
+        const license = {IsLicensed: 'false', SkuShortName: 'starter'};
         await operator.handleSystem({systems: [{id: SYSTEM_IDENTIFIERS.LICENSE, value: license}], prepareRecordsOnly: false});
-        expect(await getLicense(database)).toEqual(license);
+        expect(await getLicense(database)).toEqual(MATRAS_LICENSE);
+        expect(MATRAS_LICENSE.IsLicensed).toBe('true');
     });
 
     it('getRecentCustomStatuses returns empty array when not set', async () => {
@@ -726,14 +730,14 @@ describe('system observe functions', () => {
         expect(await firstValueFrom(observeConfigIntValue(database, 'MaxPostSize'))).toBe(200);
     });
 
-    it('observeLicense emits undefined when not set', async () => {
-        expect(await firstValueFrom(observeLicense(database))).toBeUndefined();
+    it('observeLicense emits the built-in license when nothing is stored (matras)', async () => {
+        expect(await firstValueFrom(observeLicense(database))).toEqual(MATRAS_LICENSE);
     });
 
-    it('observeLicense emits stored license', async () => {
-        const license = {IsLicensed: 'true'};
+    it('observeLicense ignores the stored server license (matras)', async () => {
+        const license = {IsLicensed: 'false'};
         await operator.handleSystem({systems: [{id: SYSTEM_IDENTIFIERS.LICENSE, value: license}], prepareRecordsOnly: false});
-        expect(await firstValueFrom(observeLicense(database))).toEqual(license);
+        expect(await firstValueFrom(observeLicense(database))).toEqual(MATRAS_LICENSE);
     });
 
     it('observeAllowedThemesKeys emits all default theme keys when AllowedThemes not set', async () => {

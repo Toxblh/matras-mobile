@@ -314,20 +314,51 @@ export const observeCanViewArchivedChannels = (database: Database) => {
     );
 };
 
-export const observeLicense = (database: Database): Observable<ClientLicense | undefined> => {
-    return querySystemValue(database, SYSTEM_IDENTIFIERS.LICENSE).observe().pipe(
-        switchMap((result) => (result.length ? result[0].observe() : of$({value: undefined}))),
-        switchMap((model) => of$(model.value)),
-    );
+// matras: the server license is never consulted. Every licensed capability reads as granted
+// and every license-driven restriction (cloud limits, teammate-name lock, gov SKU, starter
+// products) reads as off, so the app behaves like a fully licensed Enterprise Advanced client.
+export const MATRAS_LICENSE: ClientLicense = {
+    IsLicensed: 'true',
+    SkuShortName: License.SKU_SHORT_NAME.EnterpriseAdvanced,
+    Cloud: 'false',
+    IsGovSku: 'false',
+    LockTeammateNameDisplay: 'false',
+    SelfHostedProducts: '',
+    Announcement: '',
+    Company: 'Matras',
+    Users: '1000000',
+    Cluster: 'true',
+    Compliance: 'true',
+    CustomPermissionsSchemes: 'true',
+    CustomTermsOfService: 'true',
+    DataRetention: 'true',
+    Elasticsearch: 'true',
+    EmailNotificationContents: 'true',
+    GoogleOAuth: 'true',
+    GuestAccounts: 'true',
+    GuestAccountsPermissions: 'true',
+    IDLoadedPushNotifications: 'true',
+    LDAP: 'true',
+    LDAPGroups: 'true',
+    MFA: 'true',
+    MHPNS: 'true',
+    MessageExport: 'true',
+    Metrics: 'true',
+    Office365OAuth: 'true',
+    OpenId: 'true',
+    RemoteClusterService: 'true',
+    SAML: 'true',
+    SharedChannels: 'true',
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const observeLicense = (database: Database): Observable<ClientLicense | undefined> => {
+    return of$(MATRAS_LICENSE);
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getLicense = async (serverDatabase: Database): Promise<ClientLicense | undefined> => {
-    try {
-        const license = await serverDatabase.get<SystemModel>(SYSTEM).find(SYSTEM_IDENTIFIERS.LICENSE);
-        return license?.value;
-    } catch {
-        return undefined;
-    }
+    return MATRAS_LICENSE;
 };
 
 export const getRecentCustomStatuses = async (database: Database): Promise<UserCustomStatus[]> => {
