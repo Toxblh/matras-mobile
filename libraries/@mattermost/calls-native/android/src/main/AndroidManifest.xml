@@ -17,7 +17,7 @@
              camera) alive while a Mattermost call is in progress and the
              app is backgrounded. The `camera` type is declared here so the
              service may request it at runtime, but it is only requested
-             while video is actually on -- see MMCallsForegroundService. -->
+             while video is actually on; see MMCallsForegroundService. -->
         <service
             android:name="com.mattermost.callsnative.MMCallsForegroundService"
             android:foregroundServiceType="microphone|camera"
