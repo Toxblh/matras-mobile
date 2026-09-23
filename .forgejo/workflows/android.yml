@@ -53,13 +53,27 @@ jobs:
           set -Eeuo pipefail
           rn="$(node -p "require('react-native/package.json').version")"
           hermes="$(node -p "require('react-native/package.json').dependencies['hermes-compiler']")"
+          # Мелкие файлы Maven Central отдаёт, а большие AAR на раннере стоят на нуле:
+          # перебираем зеркала, целостность сверяем с .sha1 с самого Maven Central.
+          mirrors="https://maven-central.storage-download.googleapis.com/maven2 https://repo1.maven.org/maven2 https://maven.aliyun.com/repository/central https://repo.maven.apache.org/maven2"
+          get() { # path dest
+            local m
+            for m in $mirrors; do
+              echo "    $m"
+              curl -fL --retry 2 --retry-all-errors -C - --connect-timeout 20 --speed-limit 20000 --speed-time 30 \
+                -sS -o "$2" "$m/$1" && return 0
+              rm -f "$2"
+            done
+            return 1
+          }
           fetch() { # group artifact version
-            local dir="$HOME/.m2/repository/${1//.//}/$2/$3" url="https://repo.maven.apache.org/maven2/${1//.//}/$2/$3"
+            local path="${1//.//}/$2/$3" dir="$HOME/.m2/repository/${1//.//}/$2/$3" f sha
             mkdir -p "$dir"
             for f in "$2-$3.pom" "$2-$3.module" "$2-$3-release.aar"; do
               echo "==> $f"
-              curl -fL --retry 10 --retry-all-errors --retry-delay 5 -C - --speed-limit 10000 --speed-time 60 \
-                -o "$dir/$f" "$url/$f"
+              get "$path/$f" "$dir/$f"
+              sha="$(curl -fsSL --retry 5 "https://repo.maven.apache.org/maven2/$path/$f.sha1" | cut -c1-40)"
+              echo "$sha  $dir/$f" | sha1sum -c -
             done
           }
           fetch com.facebook.react react-android "$rn"
