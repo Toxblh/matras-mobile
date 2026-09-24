@@ -2,4 +2,27 @@
 <resources>
     <!-- matras: название в лаунчере и системных экранах на русском -->
     <string name="app_name">Матрас</string>
+    <!-- matras: управляемые настройки (MDM/EMM), видны в консоли администратора устройств -->
+    <string name="inAppPinCode_title">ПИН-код в приложении</string>
+    <string name="inAppPinCode_description">Требовать подтверждения владельца телефона перед использованием приложения. Запрашивает отпечаток пальца или код при первом запуске и после того, как приложение было в фоне больше 5 минут.</string>
+    <string name="blurApplicationScreen_title">Размытие экрана приложения</string>
+    <string name="blurApplicationScreen_description">Размывать приложение при переходе в фон, чтобы скрыть конфиденциальные данные на экране. Также запрещает снимки экрана приложения.</string>
+    <string name="jailbreakProtection_title">Обнаружение Jailbreak &#x2F; Root</string>
+    <string name="jailbreakProtection_description">Не запускать приложение на устройствах со снятыми ограничениями (Jailbreak или root).</string>
+    <string name="copyAndPasteProtection_title">Защита копирования и вставки</string>
+    <string name="copyAndPasteProtection_description">Запретить копирование из текстовых полей приложения и вставку в них.</string>
+    <string name="serverUrl_title">Адрес сервера Mattermost</string>
+    <string name="serverUrl_description">Адрес сервера Mattermost по умолчанию.</string>
+    <string name="serverName_title">Название сервера Mattermost</string>
+    <string name="serverName_description">Название сервера Mattermost по умолчанию.</string>
+    <string name="allowOtherServers_title">Разрешить другие серверы</string>
+    <string name="allowOtherServers_description">Разрешить пользователю менять адрес сервера, указанный выше.</string>
+    <string name="username_title">Имя пользователя по умолчанию</string>
+    <string name="username_description">Имя пользователя или адрес e-mail для входа на сервер Mattermost.</string>
+    <string name="timeout_title">Время ожидания запроса по умолчанию</string>
+    <string name="timeout_description">Сколько миллисекунд мобильное приложение ждёт ответа сервера.</string>
+    <string name="vendor_title">Поставщик EMM или название компании</string>
+    <string name="vendor_description">Название поставщика EMM или компании, которая развёртывает приложение. Показывается при запросе кода, чтобы пользователь понимал, зачем приложение защищено.</string>
+    <string name="inAppSessionAuth_title">Вход внутри приложения</string>
+    <string name="inAppSessionAuth_description">Вместо входа через мобильный браузер выполнять SSO во встроенном WebView.</string>
 </resources>
