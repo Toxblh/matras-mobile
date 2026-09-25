@@ -126,7 +126,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     };
 });
 
-const POST_TAP_MOVE_THRESHOLD = 4;
+const POST_TAP_MOVE_THRESHOLD = 2;
 
 const Post = ({
     appsEnabled,

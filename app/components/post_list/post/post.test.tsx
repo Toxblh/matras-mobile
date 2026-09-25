@@ -105,14 +105,14 @@ describe('performance metrics', () => {
         const postRow = getByTestId(`post-row.${post.id}`);
 
         fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
-        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 108, pageY: 102}});
+        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 103, pageY: 100}});
         fireEvent.press(postRow);
         await new Promise((resolve) => setTimeout(resolve, 350));
 
         expect(fetchAndSwitchToThread).not.toHaveBeenCalled();
     });
 
-    it('still opens a thread when the post is tapped without moving', async () => {
+    it('still opens a thread when a tap only has slight finger jitter', async () => {
         jest.clearAllMocks();
         const props = getBaseProps();
         props.isLastPost = false;
@@ -122,6 +122,7 @@ describe('performance metrics', () => {
         const postRow = getByTestId(`post-row.${post.id}`);
 
         fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
+        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 101, pageY: 100}});
         fireEvent.press(postRow);
 
         await waitFor(() => {
