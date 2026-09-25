@@ -1,8 +1,10 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {fireEvent} from '@testing-library/react-native';
 import React, {type ComponentProps} from 'react';
 
+import {fetchAndSwitchToThread} from '@actions/remote/thread';
 import UnrevealedBurnOnReadPost from '@components/post_list/post/burn_on_read/unrevealed';
 import SystemHeader from '@components/system_header';
 import {Screens} from '@constants';
@@ -22,6 +24,7 @@ import type {Database} from '@nozbe/watermelondb';
 import type PostModel from '@typings/database/models/servers/post';
 
 jest.mock('@managers/performance_metrics_manager');
+jest.mock('@actions/remote/thread', () => ({fetchAndSwitchToThread: jest.fn()}));
 jest.mock('@components/post_list/post/burn_on_read/unrevealed');
 jest.mock('@components/system_header', () => jest.fn());
 jest.mock('./avatar', () => jest.fn());
@@ -89,6 +92,40 @@ describe('performance metrics', () => {
         await waitFor(() => {
             expect(PerformanceMetricsManager.finishLoad).toHaveBeenCalledWith('THREAD', serverUrl);
             expect(PerformanceMetricsManager.endMetric).toHaveBeenCalledWith('mobile_channel_switch', serverUrl);
+        });
+    });
+
+    it('does not open a thread when a short drag on a post is mistaken for a tap', async () => {
+        jest.clearAllMocks();
+        const props = getBaseProps();
+        props.isLastPost = false;
+        props.testID = 'post-row';
+        const {getByTestId} = renderWithEverything(<Post {...props}/>, {database, serverUrl});
+        const postContainer = getByTestId('post-row');
+        const postRow = getByTestId(`post-row.${post.id}`);
+
+        fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
+        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 108, pageY: 102}});
+        fireEvent.press(postRow);
+        await new Promise((resolve) => setTimeout(resolve, 350));
+
+        expect(fetchAndSwitchToThread).not.toHaveBeenCalled();
+    });
+
+    it('still opens a thread when the post is tapped without moving', async () => {
+        jest.clearAllMocks();
+        const props = getBaseProps();
+        props.isLastPost = false;
+        props.testID = 'post-row';
+        const {getByTestId} = renderWithEverything(<Post {...props}/>, {database, serverUrl});
+        const postContainer = getByTestId('post-row');
+        const postRow = getByTestId(`post-row.${post.id}`);
+
+        fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
+        fireEvent.press(postRow);
+
+        await waitFor(() => {
+            expect(fetchAndSwitchToThread).toHaveBeenCalledWith(serverUrl, post.id);
         });
     });
 
