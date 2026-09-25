@@ -3,7 +3,8 @@
 
 import React, {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
-import {type GestureResponderEvent, type StyleProp, View, type ViewStyle, TouchableHighlight, type LayoutChangeEvent} from 'react-native';
+import {type StyleProp, View, type ViewStyle, type LayoutChangeEvent} from 'react-native';
+import {Pressable, type NativeGesture} from 'react-native-gesture-handler';
 
 import {removePost} from '@actions/local/post';
 import {showPermalink} from '@actions/remote/permalink';
@@ -87,6 +88,7 @@ type PostProps = {
     testID?: string;
     thread?: ThreadModel;
     isChannelAutotranslated: boolean;
+    scrollGesture?: NativeGesture;
 };
 
 const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
@@ -126,8 +128,6 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
     };
 });
 
-const POST_TAP_MOVE_THRESHOLD = 2;
-
 const Post = ({
     appsEnabled,
     mmBlocksEnabled,
@@ -166,10 +166,9 @@ const Post = ({
     previousPost,
     isLastPost,
     isChannelAutotranslated,
+    scrollGesture,
 }: PostProps) => {
     const pressDetected = useRef(false);
-    const touchStart = useRef<{x: number; y: number} | null>(null);
-    const touchMoved = useRef(false);
     const serverUrl = useServerUrl();
     const theme = useTheme();
     const intl = useIntl();
@@ -236,13 +235,6 @@ const Post = ({
     }, [location, isAutoResponder, isSystemPost, isEphemeral, hasBeenDeleted, isPendingOrFailed, serverUrl, post, borPost, blurAndDismissKeyboard]);
 
     const handlePress = usePreventDoubleTap(useCallback(() => {
-        const wasTouchMoved = touchMoved.current;
-        touchMoved.current = false;
-        touchStart.current = null;
-        if (wasTouchMoved) {
-            return;
-        }
-
         if (isBoRPost(post)) {
             return;
         }
@@ -255,24 +247,6 @@ const Post = ({
             setTimeout(handlePostPress, 300);
         }
     }, [handlePostPress, post]));
-
-    const handleTouchStart = useCallback((event: GestureResponderEvent) => {
-        touchStart.current = {
-            x: event.nativeEvent.pageX,
-            y: event.nativeEvent.pageY,
-        };
-        touchMoved.current = false;
-    }, []);
-
-    const handleTouchMove = useCallback((event: GestureResponderEvent) => {
-        if (!touchStart.current || touchMoved.current) {
-            return;
-        }
-
-        const deltaX = event.nativeEvent.pageX - touchStart.current.x;
-        const deltaY = event.nativeEvent.pageY - touchStart.current.y;
-        touchMoved.current = (deltaX * deltaX) + (deltaY * deltaY) >= POST_TAP_MOVE_THRESHOLD ** 2;
-    }, []);
 
     const showPostOptions = useCallback(async () => {
         if (!post) {
@@ -487,16 +461,14 @@ const Post = ({
             testID={testID}
             style={[styles.postStyle, style, highlightedStyle]}
             onLayout={onLayout}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
         >
-            <TouchableHighlight
+            <Pressable
                 testID={itemTestID}
                 onPress={handlePress}
                 onLongPress={showPostOptions}
                 delayLongPress={200}
-                underlayColor={changeOpacity(theme.centerChannelColor, 0.1)}
-                style={styles.postContent}
+                requireExternalGestureToFail={scrollGesture}
+                style={({pressed}) => [styles.postContent, pressed && {backgroundColor: changeOpacity(theme.centerChannelColor, 0.1)}]}
             >
                 <View>
                     <PreHeader
@@ -516,7 +488,7 @@ const Post = ({
                         {unreadDot}
                     </View>
                 </View>
-            </TouchableHighlight>
+            </Pressable>
             <ShimmerAnimation {...shimmerAnimationProps}/>
         </View>
     );

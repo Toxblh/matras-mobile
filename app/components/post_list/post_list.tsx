@@ -203,6 +203,7 @@ const PostList = ({
     // Progressive loading: start with 10 items, then add the rest after initial render
     // The remaining posts are loaded in trackInitialRenderMetrics when viewable items are detected
     const [showAllPosts, setShowAllPosts] = useState(false);
+    const nativeGesture = useMemo(() => Gesture.Native(), []);
 
     const {orderedPosts, initialIndex} = useMemo(() => {
         const result = preparePostList(posts, lastViewedAt, showNewMessageLine, currentUserId, currentUsername, shouldShowJoinLeaveMessages, currentTimezone, location === Screens.THREAD, savedPostIds);
@@ -478,6 +479,7 @@ const PostList = ({
                     skipSavedHeader,
                     testID: `${testID}.post`,
                     isChannelAutotranslated,
+                    scrollGesture: nativeGesture,
                 };
 
                 return (
@@ -488,7 +490,7 @@ const PostList = ({
                 );
             }
         }
-    }, [appsEnabled, mmBlocksEnabled, currentTimezone, currentUser, currentUsername, customEmojiNames, highlightPinnedOrSaved, highlightedId, isCRTEnabled, isChannelAutotranslated, isPostAcknowledgementEnabled, location, rootId, shouldRenderReplyButton, shouldShowJoinLeaveMessages, testID, theme]);
+    }, [appsEnabled, mmBlocksEnabled, currentTimezone, currentUser, currentUsername, customEmojiNames, highlightPinnedOrSaved, highlightedId, isCRTEnabled, isChannelAutotranslated, isPostAcknowledgementEnabled, location, nativeGesture, rootId, shouldRenderReplyButton, shouldShowJoinLeaveMessages, testID, theme]);
 
     useEffect(() => {
         const t = setTimeout(() => {
@@ -551,8 +553,12 @@ const PostList = ({
         return {};
     });
 
-    const nativeGesture = Gesture.Native();
-    const composedGesture = emojiPickerGesture ? Gesture.Simultaneous(nativeGesture, emojiPickerGesture) : nativeGesture;
+    const composedGesture = useMemo(() => {
+        if (emojiPickerGesture) {
+            return Gesture.Simultaneous(nativeGesture, emojiPickerGesture);
+        }
+        return nativeGesture;
+    }, [emojiPickerGesture, nativeGesture]);
 
     return (
         <>

@@ -3,6 +3,7 @@
 
 import {fireEvent} from '@testing-library/react-native';
 import React, {type ComponentProps} from 'react';
+import {Gesture} from 'react-native-gesture-handler';
 
 import {fetchAndSwitchToThread} from '@actions/remote/thread';
 import UnrevealedBurnOnReadPost from '@components/post_list/post/burn_on_read/unrevealed';
@@ -95,34 +96,25 @@ describe('performance metrics', () => {
         });
     });
 
-    it('does not open a thread when a short drag on a post is mistaken for a tap', async () => {
+    it('waits for the post list native scroll gesture before treating a post as a tap', async () => {
         jest.clearAllMocks();
         const props = getBaseProps();
         props.isLastPost = false;
         props.testID = 'post-row';
+        props.scrollGesture = Gesture.Native();
         const {getByTestId} = renderWithEverything(<Post {...props}/>, {database, serverUrl});
-        const postContainer = getByTestId('post-row');
-        const postRow = getByTestId(`post-row.${post.id}`);
 
-        fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
-        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 103, pageY: 100}});
-        fireEvent.press(postRow);
-        await new Promise((resolve) => setTimeout(resolve, 350));
-
-        expect(fetchAndSwitchToThread).not.toHaveBeenCalled();
+        expect(getByTestId(`post-row.${post.id}`).props.requireExternalGestureToFail).toBe(props.scrollGesture);
     });
 
-    it('still opens a thread when a tap only has slight finger jitter', async () => {
+    it('opens a thread when a post is tapped', async () => {
         jest.clearAllMocks();
         const props = getBaseProps();
         props.isLastPost = false;
         props.testID = 'post-row';
         const {getByTestId} = renderWithEverything(<Post {...props}/>, {database, serverUrl});
-        const postContainer = getByTestId('post-row');
         const postRow = getByTestId(`post-row.${post.id}`);
 
-        fireEvent(postContainer, 'touchStart', {nativeEvent: {pageX: 100, pageY: 100}});
-        fireEvent(postContainer, 'touchMove', {nativeEvent: {pageX: 101, pageY: 100}});
         fireEvent.press(postRow);
 
         await waitFor(() => {
