@@ -11,6 +11,7 @@ import FavoriteBox from '@components/channel_actions/favorite_box';
 import MutedBox from '@components/channel_actions/mute_box';
 import SetHeaderBox from '@components/channel_actions/set_header_box';
 import {useServerUrl} from '@context/server';
+import {GomonCallBox} from '@gomon/components/call_button';
 import {dismissBottomSheet} from '@screens/navigation';
 import {isDMChannel, isTypeDMorGM} from '@utils/channel';
 
@@ -60,6 +61,10 @@ const ChannelActions = ({
 
     return (
         <View style={styles.wrapper}>
+            <GomonCallBox
+                channelId={channelId}
+                dismissChannelInfo={dismissChannelInfo}
+            />
             <FavoriteBox
                 channelId={channelId}
                 showSnackBar={!inModal}

@@ -19,6 +19,7 @@ import RoundedHeaderContext from '@components/rounded_header_context';
 import {Events, General, Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
+import {useGomonHeaderButton} from '@gomon/components/call_button';
 import {useIsTablet} from '@hooks/device';
 import {useDefaultHeaderHeight} from '@hooks/header';
 import {usePreventDoubleTap} from '@hooks/utils';
@@ -135,6 +136,7 @@ const ChannelHeader = ({
     const isDMorGM = isTypeDMorGM(channelType);
     const isDM = isDMChannel(channelType);
     const navigationHeaderCallButton = useNavigationHeaderCallButtonForDM(channelId, channelType);
+    const gomonCallButton = useGomonHeaderButton(channelId);
     const contextStyle = useMemo(() => ({
         top: defaultHeight,
     }), [defaultHeight]);
@@ -228,6 +230,10 @@ const ChannelHeader = ({
             });
         }
 
+        if (isDMorGM && gomonCallButton && (!isDM || canCallDMUser)) {
+            buttons.push(gomonCallButton);
+        }
+
         if (isDM && callsAvailable && canCallDMUser && navigationHeaderCallButton) {
             buttons.push(navigationHeaderCallButton);
         }
@@ -240,7 +246,7 @@ const ChannelHeader = ({
         });
 
         return buttons;
-    }, [isPlaybooksEnabled, playbooksActiveRuns, isDMorGM, onChannelQuickAction, openPlaybooksRuns, isDM, callsAvailable, canCallDMUser, navigationHeaderCallButton]);
+    }, [isPlaybooksEnabled, playbooksActiveRuns, isDMorGM, onChannelQuickAction, openPlaybooksRuns, isDM, callsAvailable, canCallDMUser, navigationHeaderCallButton, gomonCallButton]);
 
     let title = displayName;
     if (isOwnDirectMessage) {
