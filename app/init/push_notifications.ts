@@ -26,6 +26,8 @@ import {getCallsConfig} from '@calls/state';
 import {isCallsStartedMessage} from '@calls/utils';
 import {Device, Events, PushNotification, Screens} from '@constants';
 import DatabaseManager from '@database/manager';
+import {acceptGomonFromPush} from '@gomon/actions';
+import {GOMON_PUSH_SUB_TYPE} from '@gomon/constants';
 import {DEFAULT_LOCALE, getLocalizedMessage} from '@i18n';
 import {getServerDisplayName} from '@queries/app/servers';
 import {getCurrentChannelId} from '@queries/servers/system';
@@ -140,7 +142,8 @@ class PushNotificationsSingleton {
         const {payload} = notification;
 
         // Do not show overlay if this is a call-started message (the call_notification will alert the user)
-        if (isCallsStartedMessage(payload)) {
+        // matras: gomon calls ring in the foreground through the websocket.
+        if (isCallsStartedMessage(payload) || payload?.sub_type === GOMON_PUSH_SUB_TYPE) {
             return;
         }
 
@@ -197,6 +200,11 @@ class PushNotificationsSingleton {
                 // Handle notification tapped
                 if (isCallsStartedMessage(payload) && payload?.call_action === 'answer') {
                     await this.answerCallFromNotification(serverUrl, notification);
+                } else if (payload?.sub_type === GOMON_PUSH_SUB_TYPE && payload.call_action === 'answer' && payload.channel_id) {
+                    await openNotification(serverUrl, notification);
+                    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+                    const user = database ? await getCurrentUser(database) : undefined;
+                    await acceptGomonFromPush(getIntlShape(user?.locale), serverUrl, payload.channel_id);
                 } else {
                     openNotification(serverUrl, notification);
                 }
@@ -321,7 +329,7 @@ class PushNotificationsSingleton {
         }
 
         // Always play a sound, except when this is a foreground notification about a call
-        const sound = !(notification.foreground && isCallsStartedMessage(notification.payload));
+        const sound = !(notification.foreground && (isCallsStartedMessage(notification.payload) || notification.payload?.sub_type === GOMON_PUSH_SUB_TYPE));
         completion({alert: false, sound, badge: true});
     };
 

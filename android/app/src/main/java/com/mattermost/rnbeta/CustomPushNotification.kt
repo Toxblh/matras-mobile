@@ -34,6 +34,8 @@ class CustomPushNotification(
 
     companion object {
         private const val SUB_TYPE_CALLS = "calls"
+        // matras: gomon (ru.corp.comms plugin) ringing call.
+        private const val SUB_TYPE_COMMS = "comms_call"
     }
 
     init {
@@ -99,7 +101,8 @@ class CustomPushNotification(
 
     override fun onOpened() {
         mNotificationProps?.let {
-            if (it.asBundle().getString("sub_type") == SUB_TYPE_CALLS) {
+            val subType = it.asBundle().getString("sub_type")
+            if (subType == SUB_TYPE_CALLS || subType == SUB_TYPE_COMMS) {
                 MMCallsIncomingCall.cancel(mContext)
             }
             digestNotification()
@@ -117,11 +120,12 @@ class CustomPushNotification(
 
         when (type) {
             CustomPushNotificationHelper.PUSH_TYPE_MESSAGE -> {
-                if (bundle.getString("sub_type") == SUB_TYPE_CALLS) {
+                val subType = bundle.getString("sub_type")
+                if (subType == SUB_TYPE_CALLS || subType == SUB_TYPE_COMMS) {
                     // matras: a ringing DM/GM call. In the foreground the in-app banner rings;
                     // otherwise show the system incoming-call UI instead of a message note.
                     if (!isAppVisible || !isMainActivity) {
-                        showIncomingCall(bundle, isReactInit)
+                        showIncomingCall(bundle, isReactInit, subType == SUB_TYPE_COMMS)
                     }
                 } else if (!isAppVisible || !isMainActivity) {
                     val createSummary = channelId?.let {
@@ -153,7 +157,7 @@ class CustomPushNotification(
         }
     }
 
-    private fun showIncomingCall(bundle: Bundle, isReactInit: Boolean) {
+    private fun showIncomingCall(bundle: Bundle, isReactInit: Boolean, isComms: Boolean) {
         val channelId = bundle.getString("channel_id")
         if (channelId.isNullOrEmpty()) {
             return
@@ -169,6 +173,7 @@ class CustomPushNotification(
             putString(MMCallsIncomingCall.EXTRA_CALLER_ID, bundle.getString("sender_id"))
             putString(MMCallsIncomingCall.EXTRA_CALLER_NAME, bundle.getString("sender_name"))
             putString(MMCallsIncomingCall.EXTRA_CHANNEL_NAME, bundle.getString("channel_name"))
+            putBoolean(CallActionReceiver.EXTRA_COMMS, isComms)
         }
 
         // Answer = open the app from this notification with call_action=answer; JS joins the
@@ -182,7 +187,8 @@ class CustomPushNotification(
         // Runs inside the push coroutine, so the blocking fetch is fine; cached after the first call.
         val avatar = MMCallsAvatars.load(mContext, bundle.getString("server_url"), bundle.getString("sender_id"))
         MMCallsIncomingCall.show(mContext, call, contentIntent, answerIntent, declineIntent, avatar)
-        if (isReactInit) {
+        // gomon calls are not Mattermost Calls: JS must not map them onto the calls plugin.
+        if (isReactInit && !isComms) {
             // Same event CallKit raises on iOS: JS maps the uuid to the call so WS events
             // (call_end, dismissed elsewhere) can take the ring down.
             MMCallsIncomingCall.emit(mAppLifecycleFacade.runningReactContext, MMCallsIncomingCall.EVENT_INCOMING_CALL, MMCallsIncomingCall.incomingCallPayload(call))

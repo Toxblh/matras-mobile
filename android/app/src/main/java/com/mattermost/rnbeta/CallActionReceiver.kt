@@ -24,6 +24,9 @@ class CallActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DECLINE = "com.mattermost.rnbeta.CALL_DECLINE"
 
+        // matras: the ring is a gomon call (ru.corp.comms plugin), not Mattermost Calls.
+        const val EXTRA_COMMS = "comms"
+
         fun declineIntent(context: Context, call: Bundle): PendingIntent {
             val intent = Intent(context, CallActionReceiver::class.java)
                 .setAction(ACTION_DECLINE)
@@ -43,8 +46,10 @@ class CallActionReceiver : BroadcastReceiver() {
         val uuid = intent.getStringExtra(MMCallsIncomingCall.EXTRA_UUID)
         MMCallsIncomingCall.cancel(context, uuid)
 
+        // gomon calls are always declined from here: JS keeps no state for a pushed gomon ring.
+        val isComms = intent.getBooleanExtra(EXTRA_COMMS, false)
         val reactContext = MMCallsIncomingCall.reactContext(context)
-        if (reactContext != null) {
+        if (reactContext != null && !isComms) {
             val body = Arguments.createMap().apply { putString("uuid", uuid) }
             MMCallsIncomingCall.emit(reactContext, MMCallsIncomingCall.EVENT_CALL_DECLINED, body)
             return
@@ -59,9 +64,14 @@ class CallActionReceiver : BroadcastReceiver() {
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 Network.init(context)
-                Network.postSync(serverUrl, "plugins/com.mattermost.calls/calls/$channelId/dismiss-notification", Arguments.createMap())?.close()
+                val endpoint = if (isComms) {
+                    "plugins/ru.corp.comms/api/v1/channels/$channelId/decline"
+                } else {
+                    "plugins/com.mattermost.calls/calls/$channelId/dismiss-notification"
+                }
+                Network.postSync(serverUrl, endpoint, Arguments.createMap())?.close()
             } catch (e: Exception) {
-                TurboLog.e("CallActionReceiver", "dismiss-notification failed: ${e.message}")
+                TurboLog.e("CallActionReceiver", "decline failed: ${e.message}")
             } finally {
                 result.finish()
             }

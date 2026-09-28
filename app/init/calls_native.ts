@@ -8,7 +8,7 @@ import CallsNative, {
     type VoIPTokenUpdated,
 } from '@mattermost/calls-native';
 import {defineMessages} from 'react-intl';
-import {Alert, Platform, type EmitterSubscription} from 'react-native';
+import {Alert, DeviceEventEmitter, Platform, type EmitterSubscription} from 'react-native';
 
 const fullScreenMessages = defineMessages({
     title: {
@@ -51,6 +51,8 @@ import {
 } from '@calls/state';
 import {Device} from '@constants';
 import DatabaseManager from '@database/manager';
+import {GOMON_LEAVE} from '@gomon/constants';
+import {getCurrentGomonCall} from '@gomon/store';
 import {DEFAULT_LOCALE} from '@i18n';
 import WebsocketManager from '@managers/websocket_manager';
 import {getServerByIdentifier} from '@queries/app/servers';
@@ -234,7 +236,9 @@ class CallsNativeSingleton {
         if (!mapping) {
             // matras: on Android the only unmapped CallEnded is "Hang up" on the
             // ongoing-call notification, which always means the current call.
-            if (Platform.OS === 'android' && getCurrentCall()) {
+            if (Platform.OS === 'android' && getCurrentGomonCall()) {
+                DeviceEventEmitter.emit(GOMON_LEAVE);
+            } else if (Platform.OS === 'android' && getCurrentCall()) {
                 leaveCall();
             }
             return;
