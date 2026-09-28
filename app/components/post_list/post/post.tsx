@@ -24,6 +24,7 @@ import {useKeyboardState} from '@context/keyboard_state';
 import {usePostConfig} from '@context/post_config';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
+import GomonCallPost, {isGomonCallPost} from '@gomon/components/call_post';
 import useDidMount from '@hooks/did_mount';
 import {usePreventDoubleTap} from '@hooks/utils';
 import PerformanceMetricsManager from '@managers/performance_metrics_manager';
@@ -393,6 +394,10 @@ const Post = ({
                 isHost={false}
                 joiningChannelId={null}
             />
+        );
+    } else if (isGomonCallPost(post) && !hasBeenDeleted) {
+        body = (
+            <GomonCallPost post={post}/>
         );
     } else if (isUnrevealedPost && !isOwnPost) {
         body = (
