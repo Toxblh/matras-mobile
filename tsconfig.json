@@ -49,6 +49,7 @@
             "@constants": ["app/constants/index"],
             "@constants/*": ["app/constants/*"],
             "@context/*": ["app/context/*"],
+            "@gomon/*": ["app/products/gomon/*"],
             "@database/*": ["app/database/*"],
             "@helpers/*": ["app/helpers/*"],
             "@hooks/*": ["app/hooks/*"],

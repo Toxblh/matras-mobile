@@ -128,7 +128,7 @@ export default defineConfig([
           "newlines-between": "always",
           "pathGroups": [
             {
-              "pattern": "{@(@actions|@agents|@app|@assets|@calls|@client|@components|@constants|@context|@database|@helpers|@hooks|@init|@keyboard|@managers|@playbooks|@queries|@screens|@selectors|@share|@store|@telemetry|@typings|@test|@utils)/**,@(@agents|@constants|@i18n|@keyboard|@store|@websocket)}",
+              "pattern": "{@(@actions|@agents|@app|@assets|@calls|@client|@components|@constants|@context|@database|@gomon|@helpers|@hooks|@init|@keyboard|@managers|@playbooks|@queries|@screens|@selectors|@share|@store|@telemetry|@typings|@test|@utils)/**,@(@agents|@constants|@i18n|@keyboard|@store|@websocket)}",
               "group": "external",
               "position": "after"
             },

@@ -24,6 +24,7 @@ module.exports = {
                 '@components': './app/components',
                 '@constants': './app/constants',
                 '@context': './app/context',
+                '@gomon': './app/products/gomon',
                 '@database': './app/database',
                 '@helpers': './app/helpers',
                 '@hooks': './app/hooks',

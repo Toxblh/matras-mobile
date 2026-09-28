@@ -13,6 +13,7 @@ import {handleAgentConversationUpdated, handleAgentPostUpdate} from '@agents/act
 import {handleAgentsEvents} from '@agents/actions/websocket/events';
 import * as calls from '@calls/connection/websocket_event_handlers';
 import {WebsocketEvents} from '@constants';
+import {checkIsGomonPluginEnabled, handleGomonEvents} from '@gomon/actions';
 import {handlePlaybookEvents} from '@playbooks/actions/websocket/events';
 
 import * as category from './category';
@@ -293,6 +294,7 @@ export async function handleWebSocketEvent(serverUrl: string, msg: WebSocketMess
         case WebsocketEvents.PLUGIN_ENABLED:
         case WebsocketEvents.PLUGIN_DISABLED:
             checkIsAgentsPluginEnabled(serverUrl);
+            checkIsGomonPluginEnabled(serverUrl);
             break;
 
         // bookmarks
@@ -382,4 +384,5 @@ export async function handleWebSocketEvent(serverUrl: string, msg: WebSocketMess
     }
     handlePlaybookEvents(serverUrl, msg);
     handleAgentsEvents(serverUrl, msg);
+    handleGomonEvents(serverUrl, msg);
 }

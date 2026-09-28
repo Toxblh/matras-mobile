@@ -23,6 +23,7 @@ import {loadConfigAndCalls} from '@calls/actions/calls';
 import {isSupportedServerCalls} from '@calls/utils';
 import {Screens} from '@constants';
 import DatabaseManager from '@database/manager';
+import {checkIsGomonPluginEnabled} from '@gomon/actions';
 import AppsManager from '@managers/apps_manager';
 import SessionAttributesManager from '@managers/session_attributes_manager';
 import {handlePlaybookReconnect} from '@playbooks/actions/websocket/reconnect';
@@ -109,6 +110,7 @@ async function doReconnect(serverUrl: string, groupLabel?: BaseRequestGroupLabel
         }
 
         checkIsAgentsPluginEnabled(serverUrl);
+        checkIsGomonPluginEnabled(serverUrl);
         fetchClassificationBanner(serverUrl, true);
 
         await deferredAppEntryActions(serverUrl, lastFullSync, currentUserId, currentUserLocale, prefData.preferences, config, license, teamData, chData, meData, initialTeamId, undefined, groupLabel);
