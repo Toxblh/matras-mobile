@@ -7,18 +7,42 @@ import {Alert, AppState, DeviceEventEmitter} from 'react-native';
 import {hasCameraPermission, hasMicrophonePermission, leaveCall} from '@calls/actions';
 import {getCurrentCall} from '@calls/state/current_call';
 import {Screens} from '@constants';
+import {SNACK_BAR_TYPE} from '@constants/snack_bar';
+import DatabaseManager from '@database/manager';
 import {GOMON_EVENTS, GOMON_INCOMING_CLOSED} from '@gomon/constants';
-import {getCurrentGomonCall, setGomonChannelCall, setGomonPluginEnabled} from '@gomon/store';
+import {getCurrentGomonCall, setCurrentGomonCall, setGomonChannelCall, setGomonMinimized, setGomonPluginEnabled} from '@gomon/store';
 import {buildEmbedUrl, isGomonPluginEnabled, isLiveState} from '@gomon/utils';
 import NetworkManager from '@managers/network_manager';
+import {getChannelById} from '@queries/servers/channel';
 import {navigateToScreen} from '@screens/navigation';
-import {NavigationStore} from '@store/navigation_store';
 import {getFullErrorMessage} from '@utils/errors';
 import {logDebug, logWarning} from '@utils/log';
+import {showSnackBar} from '@utils/snack_bar';
 
 const messages = defineMessages({
     failed: {id: 'gomon.call_failed', defaultMessage: 'Could not connect to the call'},
+    title: {id: 'gomon.call_title', defaultMessage: 'Call'},
+    alreadyInCall: {id: 'gomon.already_in_call', defaultMessage: 'You are already in a call'},
 });
+
+// One call at a time: bring the active one back instead of starting another.
+function expandActiveGomonCall(intl: IntlShape, serverUrl: string, channelId: string) {
+    const call = getCurrentGomonCall();
+    if (!call) {
+        return false;
+    }
+    setGomonMinimized(false);
+    if (call.serverUrl !== serverUrl || call.channelId !== channelId) {
+        showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage: intl.formatMessage(messages.alreadyInCall)});
+    }
+    return true;
+}
+
+async function channelTitle(serverUrl: string, channelId: string) {
+    const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+    const channel = database ? await getChannelById(database, channelId) : undefined;
+    return channel?.displayName || '';
+}
 
 export async function checkIsGomonPluginEnabled(serverUrl: string) {
     try {
@@ -39,7 +63,7 @@ export async function fetchGomonChannelCall(serverUrl: string, channelId: string
 }
 
 export async function openGomonCall(intl: IntlShape, serverUrl: string, channelId: string, joinUrl: string, video: boolean, callId?: string) {
-    if (getCurrentGomonCall() || NavigationStore.isScreenInStack(Screens.GOMON_CALL)) {
+    if (expandActiveGomonCall(intl, serverUrl, channelId)) {
         return;
     }
     if (getCurrentCall()) {
@@ -47,12 +71,22 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
     }
     await hasMicrophonePermission();
     const withCamera = video && await hasCameraPermission(intl);
-    navigateToScreen(Screens.GOMON_CALL, {
+    const title = await channelTitle(serverUrl, channelId);
+
+    // A second tap may have opened it while we waited for the permissions.
+    if (expandActiveGomonCall(intl, serverUrl, channelId)) {
+        return;
+    }
+    setCurrentGomonCall({
         serverUrl,
         channelId,
         callId,
         withCamera,
         url: buildEmbedUrl(joinUrl, !withCamera),
+        locale: intl.locale,
+        title: title || intl.formatMessage(messages.title),
+        startedAt: Date.now(),
+        minimized: false,
     });
 }
 
@@ -62,6 +96,9 @@ const showFailure = (intl: IntlShape, error: unknown) => {
 };
 
 export async function startGomonCall(intl: IntlShape, serverUrl: string, channelId: string, video = true) {
+    if (expandActiveGomonCall(intl, serverUrl, channelId)) {
+        return;
+    }
     try {
         const res = await NetworkManager.getClient(serverUrl).gomonStartCall(channelId, video);
         setGomonChannelCall(serverUrl, channelId, res.call_id);
@@ -72,6 +109,9 @@ export async function startGomonCall(intl: IntlShape, serverUrl: string, channel
 }
 
 export async function joinGomonCall(intl: IntlShape, serverUrl: string, channelId: string, callId: string, video = true) {
+    if (expandActiveGomonCall(intl, serverUrl, channelId)) {
+        return;
+    }
     try {
         const res = await NetworkManager.getClient(serverUrl).gomonJoinCall(callId);
         await openGomonCall(intl, serverUrl, channelId, res.join_url, video, callId);
@@ -102,6 +142,9 @@ export async function declineGomonInvitation(serverUrl: string, invitationId: st
 // Push "Answer": only the channel is known. The rung invitation may be gone (404/409),
 // then join the live call directly if there is one.
 export async function acceptGomonFromPush(intl: IntlShape, serverUrl: string, channelId: string) {
+    if (expandActiveGomonCall(intl, serverUrl, channelId)) {
+        return;
+    }
     const client = NetworkManager.getClient(serverUrl);
     try {
         const res = await client.gomonChannelInvitation(channelId, 'accept');

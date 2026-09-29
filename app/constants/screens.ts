@@ -14,7 +14,6 @@ const CALL = 'call';
 const CALL_PARTICIPANTS = 'call_participants';
 const CALL_HOST_CONTROLS = 'call_host_controls';
 const CHANNEL = 'channel';
-const GOMON_CALL = 'gomon_call';
 const GOMON_INCOMING = 'gomon_incoming';
 const CHANNEL_ADD_MEMBERS = 'channel_add_members';
 const CHANNEL_BOOKMARK = 'channel_bookmark';
@@ -101,7 +100,6 @@ export default {
     CALL_PARTICIPANTS,
     CALL_HOST_CONTROLS,
     CHANNEL,
-    GOMON_CALL,
     GOMON_INCOMING,
     CHANNEL_ADD_MEMBERS,
     CHANNEL_BOOKMARK,

@@ -17,6 +17,7 @@ import tinycolor from 'tinycolor2';
 import {Screens} from '@constants';
 import {isEdgeToEdge} from '@constants/device';
 import {useThemeByAppearanceWithDefault} from '@context/theme';
+import GomonCallHost from '@gomon/components/call_host';
 import useDidMount from '@hooks/did_mount';
 import {DEFAULT_LOCALE, getTranslations} from '@i18n';
 import {cleanup, initialize} from '@init/app';
@@ -215,6 +216,8 @@ export default function RootLayout() {
                                         options={bottomSheetScreenOptions}
                                     />
                                 </Stack>
+                                {/* matras: the gomon call outlives screens, above navigation */}
+                                <GomonCallHost/>
                                 <PortalHost name='snack_bar'/>
                                 <SnackBarContainer/>
                                 <PortalHost name='watermark'/>

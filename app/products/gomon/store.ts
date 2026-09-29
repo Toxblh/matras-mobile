@@ -53,10 +53,32 @@ export const useGomonState = (serverUrl: string) => {
     return state;
 };
 
-// The call shown by the gomon call screen right now (one at a time).
-export type CurrentGomonCall = {serverUrl: string; channelId: string; callId?: string};
-let currentCall: CurrentGomonCall | undefined;
-export const getCurrentGomonCall = () => currentCall;
-export const setCurrentGomonCall = (call?: CurrentGomonCall) => {
-    currentCall = call;
+// The one active call, hosted by GomonCallHost above navigation.
+export type CurrentGomonCall = {
+    serverUrl: string;
+    channelId: string;
+    callId?: string;
+    url: string;
+    withCamera: boolean;
+    locale: string;
+    title: string;
+    startedAt: number;
+    minimized: boolean;
+};
+const currentCall = new BehaviorSubject<CurrentGomonCall | undefined>(undefined);
+export const getCurrentGomonCall = () => currentCall.value;
+export const setCurrentGomonCall = (call?: CurrentGomonCall) => currentCall.next(call);
+export const setGomonMinimized = (minimized: boolean) => {
+    const call = currentCall.value;
+    if (call && call.minimized !== minimized) {
+        currentCall.next({...call, minimized});
+    }
+};
+export const useCurrentGomonCall = () => {
+    const [call, setCall] = useState(currentCall.value);
+    useEffect(() => {
+        const sub = currentCall.subscribe(setCall);
+        return () => sub.unsubscribe();
+    }, []);
+    return call;
 };

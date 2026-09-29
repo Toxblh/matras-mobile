@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {bridgeCommand, buildEmbedUrl, isGomonPluginEnabled, isLiveState, nextAudioRoute, parseBridgeMessage, urlOrigin} from './utils';
+import {bridgeCommand, buildEmbedUrl, formatCallDuration, isGomonPluginEnabled, isLiveState, nextAudioRoute, parseBridgeMessage, urlOrigin} from './utils';
 
 describe('gomon utils', () => {
     it('inserts embed=rn before the fragment', () => {
@@ -58,5 +58,11 @@ describe('gomon utils', () => {
         // Active headset gone: fall back.
         expect(nextAudioRoute([...base], [...bt], 'BLUETOOTH', undefined, true)).toBe('SPEAKER_PHONE');
         expect(nextAudioRoute([...base], [...bt], 'BLUETOOTH', 'BLUETOOTH', false)).toBe('EARPIECE');
+    });
+
+    it('formats the call duration', () => {
+        expect(formatCallDuration(-5)).toBe('0:00');
+        expect(formatCallDuration(65_400)).toBe('1:05');
+        expect(formatCallDuration(3_725_000)).toBe('1:02:05');
     });
 });
