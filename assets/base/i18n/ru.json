@@ -540,6 +540,7 @@
   "global_threads.unreads": "Непрочитанные",
   "gomon.accept": "Принять",
   "gomon.accept_audio": "Только звук",
+  "gomon.audio_output": "Вывод звука",
   "gomon.call_failed": "Не удалось подключиться к звонку",
   "gomon.call_people": "{count, plural, one {# участник} few {# участника} many {# участников} other {# участника}}",
   "gomon.call_title": "Звонок",

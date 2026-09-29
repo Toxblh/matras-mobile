@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {bridgeCommand, buildEmbedUrl, isGomonPluginEnabled, isLiveState, parseBridgeMessage, urlOrigin} from './utils';
+import {bridgeCommand, buildEmbedUrl, isGomonPluginEnabled, isLiveState, nextAudioRoute, parseBridgeMessage, urlOrigin} from './utils';
 
 describe('gomon utils', () => {
     it('inserts embed=rn before the fragment', () => {
@@ -36,5 +36,27 @@ describe('gomon utils', () => {
         expect(isGomonPluginEnabled(undefined)).toBe(false);
         expect(isLiveState('EMPTY_GRACE')).toBe(true);
         expect(isLiveState('ENDED')).toBe(false);
+    });
+
+    it('picks the audio route', () => {
+        const base = ['SPEAKER_PHONE', 'EARPIECE'] as const;
+        const bt = [...base, 'BLUETOOTH'] as const;
+
+        // First route event: everything is new.
+        expect(nextAudioRoute([...base], [], 'EARPIECE', undefined, true)).toBe('SPEAKER_PHONE');
+        expect(nextAudioRoute([...base], [], 'EARPIECE', undefined, false)).toBe('EARPIECE');
+        expect(nextAudioRoute([...bt], [], 'EARPIECE', undefined, true)).toBe('BLUETOOTH');
+        expect(nextAudioRoute([...base, 'WIRED_HEADSET'], [], 'EARPIECE', undefined, true)).toBe('WIRED_HEADSET');
+
+        // Nothing changed.
+        expect(nextAudioRoute([...base], [...base], 'SPEAKER_PHONE', undefined, true)).toBeUndefined();
+
+        // Headset connected: switch unless the user pinned a route that still exists.
+        expect(nextAudioRoute([...bt], [...base], 'SPEAKER_PHONE', undefined, true)).toBe('BLUETOOTH');
+        expect(nextAudioRoute([...bt], [...base], 'SPEAKER_PHONE', 'SPEAKER_PHONE', true)).toBeUndefined();
+
+        // Active headset gone: fall back.
+        expect(nextAudioRoute([...base], [...bt], 'BLUETOOTH', undefined, true)).toBe('SPEAKER_PHONE');
+        expect(nextAudioRoute([...base], [...bt], 'BLUETOOTH', 'BLUETOOTH', false)).toBe('EARPIECE');
     });
 });

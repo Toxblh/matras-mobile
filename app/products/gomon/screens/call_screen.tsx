@@ -1,6 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import CallsNative, {type AudioDeviceType, type AudioRoute} from '@mattermost/calls-native';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
 import {Alert, DeviceEventEmitter, Pressable, StyleSheet, Text, View} from 'react-native';
@@ -10,11 +11,13 @@ import WebViewBase, {type WebViewMessageEvent, type WebViewProps} from 'react-na
 import {foregroundServiceStart, foregroundServiceStop} from '@calls/connection/foreground_service';
 import CompassIcon from '@components/compass_icon';
 import {Screens} from '@constants';
+import AudioOutputButton from '@gomon/components/audio_output_button';
 import {GOMON_LEAVE} from '@gomon/constants';
 import {setCurrentGomonCall} from '@gomon/store';
-import {bridgeCommand, parseBridgeMessage, urlOrigin} from '@gomon/utils';
+import {bridgeCommand, nextAudioRoute, parseBridgeMessage, urlOrigin} from '@gomon/utils';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import {navigateBack} from '@screens/navigation';
+import {logWarning} from '@utils/log';
 import {tryOpenURL} from '@utils/url';
 
 import type {ShouldStartLoadRequest} from 'react-native-webview/lib/WebViewTypes';
@@ -56,6 +59,10 @@ const GomonCallScreen = ({serverUrl, channelId, callId, url, withCamera = false}
     const webViewRef = useRef<WebViewHandle>(null);
     const closed = useRef(false);
     const [state, setState] = useState<{mic: boolean; people: number}>();
+    const [audio, setAudio] = useState<AudioRoute>();
+    const audioRef = useRef<AudioRoute | undefined>(undefined);
+    const pinnedRoute = useRef<AudioDeviceType | undefined>(undefined);
+    const wantedRoute = useRef<AudioDeviceType | undefined>(undefined);
     const origin = urlOrigin(url);
 
     const close = useCallback(() => {
@@ -81,14 +88,45 @@ const GomonCallScreen = ({serverUrl, channelId, callId, url, withCamera = false}
         webViewRef.current?.injectJavaScript(bridgeCommand('mic'));
     }, []);
 
+    const selectAudio = useCallback((device: AudioDeviceType) => {
+        pinnedRoute.current = device;
+        wantedRoute.current = device;
+        CallsNative.setAudioRoute(device);
+    }, []);
+
     useEffect(() => {
         setCurrentGomonCall({serverUrl, channelId, callId});
         foregroundServiceStart(intl, withCamera, serverUrl, channelId);
+
+        // Voice-call audio session (MODE_IN_COMMUNICATION + focus), shared with Calls,
+        // so the WebView's WebRTC audio can be routed to earpiece / headset / speaker.
+        const onRoute = (route: AudioRoute) => {
+            const available = route.availableAudioDeviceList;
+            const next = nextAudioRoute(available, audioRef.current?.availableAudioDeviceList ?? [], route.selectedAudioDevice, pinnedRoute.current, withCamera);
+            if (pinnedRoute.current && !available.includes(pinnedRoute.current)) {
+                pinnedRoute.current = undefined;
+            }
+            audioRef.current = route;
+            setAudio(route);
+            if (next) {
+                wantedRoute.current = next;
+            }
+            if (next && next !== route.selectedAudioDevice) {
+                CallsNative.setAudioRoute(next);
+            }
+        };
+        const routeSub = CallsNative.onAudioRouteChanged(onRoute);
+        CallsNative.startAudioSession().
+            then(() => CallsNative.getAudioRoute()).
+            then(onRoute).
+            catch((e) => logWarning('gomon: audio session', e));
 
         // "Hang up" on the ongoing-call notification (calls_native.ts).
         const sub = DeviceEventEmitter.addListener(GOMON_LEAVE, leave);
         return () => {
             sub.remove();
+            routeSub.remove();
+            CallsNative.stopAudioSession();
             foregroundServiceStop();
             setCurrentGomonCall(undefined);
         };
@@ -102,11 +140,16 @@ const GomonCallScreen = ({serverUrl, channelId, callId, url, withCamera = false}
     const onMessage = useCallback((e: WebViewMessageEvent) => {
         const msg = parseBridgeMessage(e.nativeEvent.data);
         if (msg?.type === 'comms:state') {
+            // ponytail: the WebView's WebRTC may reset the route when it opens the mic;
+            // re-apply ours once on join. Hook every state message if that proves not enough.
+            if (!state && wantedRoute.current) {
+                CallsNative.setAudioRoute(wantedRoute.current);
+            }
             setState({mic: msg.mic, people: msg.people});
         } else if (msg?.type === 'comms:ended') {
             close();
         }
-    }, [close]);
+    }, [close, state]);
 
     // Everything off the gomon origin goes to the system browser.
     const onShouldStartLoadWithRequest = useCallback((req: ShouldStartLoadRequest) => {
@@ -144,6 +187,13 @@ const GomonCallScreen = ({serverUrl, channelId, callId, url, withCamera = false}
                 >
                     {title}
                 </Text>
+                {audio &&
+                    <AudioOutputButton
+                        route={audio}
+                        onSelect={selectAudio}
+                        style={styles.button}
+                    />
+                }
                 {state &&
                     <Pressable
                         onPress={toggleMic}

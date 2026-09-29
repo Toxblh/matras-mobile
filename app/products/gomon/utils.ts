@@ -1,6 +1,8 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {AudioDevice, type AudioDeviceType} from '@mattermost/calls-native';
+
 import {GOMON_PLUGIN_ID, LIVE_STATES} from './constants';
 
 export type BridgeMessage =
@@ -49,4 +51,30 @@ export function isGomonPluginEnabled(manifests: Array<{id: string}> | undefined)
 
 export function isLiveState(state: unknown) {
     return typeof state === 'string' && LIVE_STATES.has(state);
+}
+
+// Route to switch to after an audio device change, or undefined to leave it alone.
+// A user pick sticks while its device exists; otherwise a new device or a lost
+// active device re-routes to headset > speaker (video) / earpiece, as Calls does.
+export function nextAudioRoute(
+    available: AudioDeviceType[],
+    previous: AudioDeviceType[],
+    selected: AudioDeviceType,
+    pinned: AudioDeviceType | undefined,
+    video: boolean,
+): AudioDeviceType | undefined {
+    const lost = !available.includes(pinned ?? selected);
+    if (pinned && !lost) {
+        return undefined;
+    }
+    if (!lost && available.every((d) => previous.includes(d))) {
+        return undefined;
+    }
+    if (available.includes(AudioDevice.Bluetooth)) {
+        return AudioDevice.Bluetooth;
+    }
+    if (available.includes(AudioDevice.WiredHeadset)) {
+        return AudioDevice.WiredHeadset;
+    }
+    return video ? AudioDevice.Speakerphone : AudioDevice.Earpiece;
 }

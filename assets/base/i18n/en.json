@@ -539,6 +539,7 @@
   "global_threads.unreads": "Unreads",
   "gomon.accept": "Accept",
   "gomon.accept_audio": "Audio only",
+  "gomon.audio_output": "Audio output",
   "gomon.call_failed": "Could not connect to the call",
   "gomon.call_people": "{count, plural, one {# participant} other {# participants}}",
   "gomon.call_title": "Call",
