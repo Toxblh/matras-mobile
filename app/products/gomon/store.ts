@@ -65,6 +65,9 @@ export type CurrentGomonCall = {
     title: string;
     startedAt: number;
     minimized: boolean;
+
+    /** matras: media through the LiveKit SDK instead of the WebView (prototype, `url` = join_url). */
+    native?: boolean;
 };
 const currentCall = new BehaviorSubject<CurrentGomonCall | undefined>(undefined);
 export const getCurrentGomonCall = () => currentCall.value;

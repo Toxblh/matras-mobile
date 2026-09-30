@@ -8,6 +8,7 @@ import {Screens} from '@constants';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
 import DatabaseManager from '@database/manager';
 import {GOMON_EVENTS, GOMON_INCOMING_CLOSED} from '@gomon/constants';
+import {isGomonNativeEnabled} from '@gomon/native/flag';
 import {hasCameraPermission, hasMicrophonePermission} from '@gomon/permissions';
 import {getCurrentGomonCall, setCurrentGomonCall, setGomonChannelCall, setGomonMinimized, setGomonPluginEnabled} from '@gomon/store';
 import {buildEmbedUrl, isGomonPluginEnabled, isLiveState} from '@gomon/utils';
@@ -68,6 +69,7 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
     await hasMicrophonePermission();
     const withCamera = video && await hasCameraPermission(intl);
     const title = await channelTitle(serverUrl, channelId);
+    const native = await isGomonNativeEnabled();
 
     // A second tap may have opened it while we waited for the permissions.
     if (expandActiveGomonCall(intl, serverUrl, channelId)) {
@@ -78,7 +80,8 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
         channelId,
         callId,
         withCamera,
-        url: buildEmbedUrl(joinUrl, !withCamera),
+        url: native ? joinUrl : buildEmbedUrl(joinUrl, !withCamera),
+        native,
         locale: intl.locale,
         title: title || intl.formatMessage(messages.title),
         startedAt: Date.now(),
