@@ -46,6 +46,7 @@ class MainApplication : Application(), ReactApplication, INotificationsApplicati
             context = applicationContext,
             packageList = PackageList(this).packages.apply {
                 add(WatermelonDBJSIPackage())
+                add(SelfUpdatePackage())
             },
             jsMainModulePath = "index"
         )

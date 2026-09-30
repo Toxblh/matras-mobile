@@ -11,6 +11,7 @@ import EphemeralModeManager from '@managers/ephemeral_mode_manager';
 import GlobalEventHandler from '@managers/global_event_handler';
 import NetworkManager from '@managers/network_manager';
 import SecurityManager from '@managers/security_manager';
+import {initSelfUpdate} from '@managers/self_update_manager';
 import SessionAttributesManager from '@managers/session_attributes_manager';
 import SessionManager from '@managers/session_manager';
 import WebsocketManager from '@managers/websocket_manager';
@@ -73,6 +74,7 @@ export async function initialize() {
     SessionManager.init();
     CallsManager.initialize();
     CallsNative.init();
+    initSelfUpdate();
 
     PushNotifications.init(serverCredentials.length > 0);
 }

@@ -21,6 +21,7 @@ import {useTheme} from '@context/theme';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import {useIsTablet} from '@hooks/device';
 import {usePreventDoubleTap} from '@hooks/utils';
+import {checkForUpdates, isSelfUpdateSupported} from '@managers/self_update_manager';
 import {navigateBack} from '@screens/navigation';
 import {showSnackBar} from '@utils/snack_bar';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
@@ -108,6 +109,10 @@ const getStyleSheet = makeStyleSheetFromTheme((theme) => {
             marginTop: 10,
             position: 'relative',
         },
+        updateButtonContainer: {
+            alignSelf: 'flex-start',
+            marginTop: 10,
+        },
         thinLine: {
             height: 0.5,
             backgroundColor: changeOpacity(theme.centerChannelColor, 0.2),
@@ -128,6 +133,12 @@ const About = ({config, license}: AboutProps) => {
     const isTablet = useIsTablet();
     const serverUrl = useServerUrl();
     const [loadMetric, setLoadMetric] = useState<number | null>(null);
+
+    // matras: manual update check for a sideloaded Android APK
+    const [canSelfUpdate, setCanSelfUpdate] = useState(false);
+    useEffect(() => {
+        isSelfUpdateSupported().then(setCanSelfUpdate);
+    }, []);
 
     useEffect(() => {
         const fetchLoadMetric = async () => {
@@ -310,6 +321,19 @@ const About = ({config, license}: AboutProps) => {
                             size='m'
                         />
                     </View>
+                    {canSelfUpdate && (
+                        <View style={styles.updateButtonContainer}>
+                            <Button
+                                theme={theme}
+                                onPress={() => checkForUpdates(true)}
+                                text={intl.formatMessage({id: 'matras.update.check', defaultMessage: 'Check for updates'})}
+                                testID={'about.check_updates'}
+                                iconName='refresh'
+                                emphasis='tertiary'
+                                size='m'
+                            />
+                        </View>
+                    )}
                     {license?.IsLicensed === 'true' && (
                         <View style={styles.licenseContainer}>
                             <FormattedText

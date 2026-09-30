@@ -14,6 +14,7 @@ import {KeyboardProvider} from 'react-native-keyboard-controller';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import tinycolor from 'tinycolor2';
 
+import SelfUpdateProgress from '@components/self_update_progress';
 import {Screens} from '@constants';
 import {isEdgeToEdge} from '@constants/device';
 import {useThemeByAppearanceWithDefault} from '@context/theme';
@@ -218,6 +219,7 @@ export default function RootLayout() {
                                 </Stack>
                                 {/* matras: the gomon call outlives screens, above navigation */}
                                 <GomonCallHost/>
+                                <SelfUpdateProgress/>
                                 <PortalHost name='snack_bar'/>
                                 <SnackBarContainer/>
                                 <PortalHost name='watermark'/>
