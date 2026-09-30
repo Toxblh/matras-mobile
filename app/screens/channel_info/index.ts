@@ -5,27 +5,18 @@ import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {combineLatest, Observable, of as of$} from 'rxjs';
 import {distinctUntilChanged, switchMap, combineLatestWith} from 'rxjs/operators';
 
-import {observeIsCallsEnabledInChannel} from '@calls/observers';
-import {observeCallsConfig} from '@calls/state';
 import {General, Permissions} from '@constants';
-import {withServerUrl} from '@context/server';
 import {observeIsPlaybooksEnabled} from '@playbooks/database/queries/version';
 import {observeChannelAutotranslation, observeCurrentChannel} from '@queries/servers/channel';
 import {observeCanAddBookmarks} from '@queries/servers/channel_bookmark';
 import {observeChannelBookmarksEnabled} from '@queries/servers/features';
 import {observeCanManageChannelAutotranslations, observeCanManageChannelMembers, observeCanManageChannelSettings, observePermissionForChannel, observePermissionForTeam} from '@queries/servers/role';
-import {
-    observeConfigValue,
-    observeCurrentChannelId,
-    observeCurrentTeamId,
-    observeCurrentUserId,
-} from '@queries/servers/system';
+import {observeConfigValue} from '@queries/servers/system';
 import {observeCurrentTeam} from '@queries/servers/team';
 import {observeIsCRTEnabled} from '@queries/servers/thread';
-import {observeCurrentUser, observeUserIsChannelAdmin, observeUserIsTeamAdmin} from '@queries/servers/user';
-import {isTypeDMorGM, isDefaultChannel} from '@utils/channel';
+import {observeCurrentUser} from '@queries/servers/user';
+import {isDefaultChannel} from '@utils/channel';
 import {isMinimumServerVersion} from '@utils/helpers';
-import {isSystemAdmin} from '@utils/user';
 
 import ChannelInfo from './channel_info';
 
@@ -34,93 +25,16 @@ import type {WithDatabaseArgs} from '@typings/database/database';
 import type ChannelModel from '@typings/database/models/servers/channel';
 import type UserModel from '@typings/database/models/servers/user';
 
-type Props = WithDatabaseArgs & {
-    serverUrl: string;
-}
+type Props = WithDatabaseArgs;
 
 const observeHasChannelSettingsActions = (
     database: Database,
-    serverUrl: string,
     channelId: Observable<string>,
     channel: Observable<ChannelModel | undefined>,
     currentUser: Observable<UserModel | undefined>,
     type: Observable<ChannelType | undefined>,
 ) => {
-    const teamId = channel.pipe(switchMap((c) => (c?.teamId ? of$(c.teamId) : observeCurrentTeamId(database))));
-    const userId = observeCurrentUserId(database);
-    const isTeamAdmin = combineLatest([teamId, userId]).pipe(
-        switchMap(([tId, uId]) => observeUserIsTeamAdmin(database, uId, tId)),
-    );
-
-    const callsPluginEnabled = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.pluginEnabled)),
-        distinctUntilChanged(),
-    );
-
-    // callsDefaultEnabled means "live mode" post 7.6
-    const callsDefaultEnabled = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.DefaultEnabled)),
-        distinctUntilChanged(),
-    );
-    const allowEnableCalls = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.AllowEnableCalls)),
-        distinctUntilChanged(),
-    );
-    const systemAdmin = currentUser.pipe(
-        switchMap((u) => (u ? of$(u.roles) : of$(''))),
-        switchMap((roles) => of$(isSystemAdmin(roles || ''))),
-        distinctUntilChanged(),
-    );
-    const channelAdmin = combineLatest([userId, channelId]).pipe(
-        switchMap(([uId, chId]) => observeUserIsChannelAdmin(database, uId, chId)),
-        distinctUntilChanged(),
-    );
     const serverVersion = observeConfigValue(database, 'Version');
-    const callsGAServer = serverVersion.pipe(
-        switchMap((v) => of$(isMinimumServerVersion(v || '', 7, 6))),
-    );
-    const dmOrGM = type.pipe(switchMap((t) => of$(isTypeDMorGM(t))));
-
-    const canEnableDisableCalls = combineLatest([callsPluginEnabled, callsDefaultEnabled, allowEnableCalls, systemAdmin, channelAdmin, callsGAServer, dmOrGM, isTeamAdmin]).pipe(
-        switchMap(([pluginEnabled, liveMode, allow, sysAdmin, chAdmin, gaServer, dmGM, tAdmin]) => {
-            // Always false if the plugin is not enabled.
-            // if GA 7.6:
-            //   allow (will always be true) and !liveMode = system admins can enable/disable
-            //   allow (will always be true) and liveMode = channel, team, system admins, DM/GM participants can enable/disable
-            // if pre GA 7.6:
-            //   allow and !liveMode  = channel, system admins, DM/GM participants can enable/disable
-            //   allow and liveMode   = channel, system admins, DM/GM participants can enable/disable
-            //   !allow and !liveMode = system admins can enable/disable -- can combine with below
-            //   !allow and liveMode  = system admins can enable/disable -- can combine with above
-            // Note: There are ways to 'simplify' the conditions below. Here we're preferring clarity.
-
-            if (!pluginEnabled) {
-                return of$(false);
-            }
-
-            if (gaServer) {
-                if (allow && !liveMode) {
-                    return of$(Boolean(sysAdmin));
-                }
-                if (allow && liveMode) {
-                    return of$(Boolean(chAdmin || tAdmin || sysAdmin || dmGM));
-                }
-                return of$(false);
-            }
-
-            // now we're pre GA 7.6
-            if (allow && liveMode) {
-                return of$(Boolean(chAdmin || sysAdmin || dmGM));
-            }
-            if (allow && !liveMode) {
-                return of$(Boolean(sysAdmin || chAdmin || dmGM));
-            }
-            if (!allow) {
-                return of$(Boolean(sysAdmin));
-            }
-            return of$(false);
-        }),
-    );
 
     const canManageSettings = currentUser.pipe(
         combineLatestWith(channelId),
@@ -207,16 +121,14 @@ const observeHasChannelSettingsActions = (
         canConvert,
         canArchive,
         canUnarchive,
-        canEnableDisableCalls,
         convertGMOptionAvailable,
         canManageChannelAutotranslations,
     ]).pipe(
-        switchMap(([manageSettings, convert, archive, unarchive, enableCalls, convertGM, manageAutotranslations]) => {
+        switchMap(([manageSettings, convert, archive, unarchive, convertGM, manageAutotranslations]) => {
             return of$(
                 manageSettings || // Channel info or Channel autotranslations
                 convert || // Convert to private
                 archive || unarchive || // Archive channel
-                enableCalls || // Enable/Disable calls
                 convertGM || // Convert GM to channel
                 manageAutotranslations, // Channel autotranslations
             );
@@ -226,14 +138,12 @@ const observeHasChannelSettingsActions = (
     return hasChannelSettingsActions;
 };
 
-const enhanced = withObservables([], ({serverUrl, database}: Props) => {
+const enhanced = withObservables([], ({database}: Props) => {
     const channel = observeCurrentChannel(database);
     const type = channel.pipe(switchMap((c) => of$(c?.type)));
     const channelId = channel.pipe(switchMap((c) => of$(c?.id || '')));
 
     const currentUser = observeCurrentUser(database);
-
-    const isCallsEnabledInChannel = observeIsCallsEnabledInChannel(database, serverUrl, observeCurrentChannelId(database));
 
     const canManageMembers = currentUser.pipe(
         combineLatestWith(channelId),
@@ -257,16 +167,15 @@ const enhanced = withObservables([], ({serverUrl, database}: Props) => {
     const channelDisplayName = channel.pipe(switchMap((c) => of$(c?.displayName || '')));
     return {
         type,
-        isCallsEnabledInChannel,
         canAddBookmarks,
         canManageMembers,
         isBookmarksEnabled,
         isCRTEnabled: observeIsCRTEnabled(database),
         isPlaybooksEnabled,
-        hasChannelSettingsActions: observeHasChannelSettingsActions(database, serverUrl, channelId, channel, currentUser, type),
+        hasChannelSettingsActions: observeHasChannelSettingsActions(database, channelId, channel, currentUser, type),
         isAutotranslationEnabledForThisChannel,
         channelDisplayName,
     };
 });
 
-export default withDatabase(withServerUrl(enhanced(ChannelInfo)));
+export default withDatabase(enhanced(ChannelInfo));

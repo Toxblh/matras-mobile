@@ -21,9 +21,6 @@ import {storeDeviceToken} from '@actions/app/global';
 import {markChannelAsViewed} from '@actions/local/channel';
 import {updateThread} from '@actions/local/thread';
 import {backgroundNotification, openNotification} from '@actions/remote/notifications';
-import {joinCallAndOpenCallScreen} from '@calls/actions/calls';
-import {getCallsConfig} from '@calls/state';
-import {isCallsStartedMessage} from '@calls/utils';
 import {Device, Events, PushNotification, Screens} from '@constants';
 import DatabaseManager from '@database/manager';
 import {acceptGomonFromPush} from '@gomon/actions';
@@ -141,9 +138,8 @@ class PushNotificationsSingleton {
     handleInAppNotification = async (serverUrl: string, notification: NotificationWithData) => {
         const {payload} = notification;
 
-        // Do not show overlay if this is a call-started message (the call_notification will alert the user)
         // matras: gomon calls ring in the foreground through the websocket.
-        if (isCallsStartedMessage(payload) || payload?.sub_type === GOMON_PUSH_SUB_TYPE) {
+        if (payload?.sub_type === GOMON_PUSH_SUB_TYPE) {
             return;
         }
 
@@ -198,9 +194,7 @@ class PushNotificationsSingleton {
                 this.handleInAppNotification(serverUrl, notification);
             } else if (userInteraction && !payload?.userInfo?.local) {
                 // Handle notification tapped
-                if (isCallsStartedMessage(payload) && payload?.call_action === 'answer') {
-                    await this.answerCallFromNotification(serverUrl, notification);
-                } else if (payload?.sub_type === GOMON_PUSH_SUB_TYPE && payload.call_action === 'answer' && payload.channel_id) {
+                if (payload?.sub_type === GOMON_PUSH_SUB_TYPE && payload.call_action === 'answer' && payload.channel_id) {
                     await openNotification(serverUrl, notification);
                     const database = DatabaseManager.serverDatabases[serverUrl]?.database;
                     const user = database ? await getCurrentUser(database) : undefined;
@@ -213,31 +207,6 @@ class PushNotificationsSingleton {
                 // completes (see onNotificationReceivedBackground).
                 await backgroundNotification(serverUrl, notification);
             }
-        }
-    };
-
-    // matras: "Answer" on the Android incoming-call notification. Open the channel the way a
-    // tapped notification does (activates the server, loads what's missing), then join the
-    // call and show the call screen. On a cold start the calls plugin config arrives with
-    // the server entry; wait for it briefly so joinCall knows the plugin is there.
-    answerCallFromNotification = async (serverUrl: string, notification: NotificationWithData) => {
-        const channelId = notification.payload?.channel_id;
-        if (!channelId) {
-            return;
-        }
-        await openNotification(serverUrl, notification);
-
-        for (let i = 0; i < 40 && !getCallsConfig(serverUrl).pluginEnabled; i++) {
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((r) => setTimeout(r, 250));
-        }
-
-        const database = DatabaseManager.serverDatabases[serverUrl]?.database;
-        const user = database ? await getCurrentUser(database) : undefined;
-        const intl = getIntlShape(user?.locale);
-        const joined = await joinCallAndOpenCallScreen(intl, serverUrl, channelId);
-        if (!joined) {
-            logWarning('answerCallFromNotification: could not join the call in', channelId);
         }
     };
 
@@ -329,7 +298,7 @@ class PushNotificationsSingleton {
         }
 
         // Always play a sound, except when this is a foreground notification about a call
-        const sound = !(notification.foreground && (isCallsStartedMessage(notification.payload) || notification.payload?.sub_type === GOMON_PUSH_SUB_TYPE));
+        const sound = !(notification.foreground && notification.payload?.sub_type === GOMON_PUSH_SUB_TYPE);
         completion({alert: false, sound, badge: true});
     };
 

@@ -11,7 +11,6 @@ import {createPost} from '@actions/remote/post';
 import {handleReactionToLatestPost} from '@actions/remote/reactions';
 import {createScheduledPost} from '@actions/remote/scheduled_post';
 import {setStatus} from '@actions/remote/user';
-import {handleCallsSlashCommand} from '@calls/actions';
 import {Events, Screens} from '@constants';
 import {NOTIFY_ALL_MEMBERS} from '@constants/post_draft';
 import {MESSAGE_TYPE, SNACK_BAR_TYPE} from '@constants/snack_bar';
@@ -69,7 +68,6 @@ export const useHandleSendMessage = ({
     membersCount = 0,
     userIsOutOfOffice,
     currentUserId,
-    channelType,
     postPriority,
     isFromDraftView,
     canPost,
@@ -201,20 +199,6 @@ export const useHandleSendMessage = ({
     }, [intl, channelTimezoneCount, doSubmitMessage]);
 
     const sendCommand = useCallback(async () => {
-        if (value && value.trim().startsWith('/call')) {
-            const {handled, error} = await handleCallsSlashCommand(value.trim(), serverUrl, channelId, channelType ?? '', rootId, currentUserId, intl);
-            if (handled) {
-                setSendingMessage(false);
-                clearDraft();
-                return;
-            }
-            if (error) {
-                setSendingMessage(false);
-                DraftUtils.alertSlashCommandFailed(intl, error);
-                return;
-            }
-        }
-
         const status = DraftUtils.getStatusFromSlashCommand(value);
         if (userIsOutOfOffice && status) {
             const updateStatus = (newStatus: string) => {
@@ -244,7 +228,7 @@ export const useHandleSendMessage = ({
         if (data?.goto_location && value && !value.startsWith('/leave')) {
             handleGotoLocation(serverUrl, intl, data.goto_location);
         }
-    }, [value, userIsOutOfOffice, serverUrl, intl, channelId, rootId, clearDraft, channelType, currentUserId]);
+    }, [value, userIsOutOfOffice, serverUrl, intl, channelId, rootId, clearDraft, currentUserId]);
 
     const sendMessage = useCallback(async (schedulingInfo?: SchedulingInfo) => {
         const notificationsToChannel = enableConfirmNotificationsToChannel && useChannelMentions;

@@ -19,8 +19,6 @@ import {openAllUnreadChannels} from '@actions/remote/preference';
 import {autoUpdateTimezone} from '@actions/remote/user';
 import {checkIsAgentsPluginEnabled} from '@agents/actions/remote/agents_status';
 import {handleAgentsReconnect} from '@agents/actions/websocket/reconnect';
-import {loadConfigAndCalls} from '@calls/actions/calls';
-import {isSupportedServerCalls} from '@calls/utils';
 import {Screens} from '@constants';
 import DatabaseManager from '@database/manager';
 import {checkIsGomonPluginEnabled} from '@gomon/actions';
@@ -104,10 +102,6 @@ async function doReconnect(serverUrl: string, groupLabel?: BaseRequestGroupLabel
 
         handlePlaybookReconnect(serverUrl);
         handleAgentsReconnect(serverUrl);
-
-        if (isSupportedServerCalls(config?.Version)) {
-            loadConfigAndCalls(serverUrl, currentUserId, groupLabel);
-        }
 
         checkIsAgentsPluginEnabled(serverUrl);
         checkIsGomonPluginEnabled(serverUrl);

@@ -2,7 +2,6 @@
 // See LICENSE.txt for license information.
 
 import ClientAgents, {type ClientAgentsMix} from '@agents/client/rest';
-import ClientCalls, {type ClientCallsMix} from '@calls/client/rest';
 import ClientPlugins, {type ClientPluginsMix} from '@client/rest/plugins';
 import ClientGomon, {type ClientGomonMix} from '@gomon/client/rest';
 import ClientPlaybooks, {type ClientPlaybooksMix} from '@playbooks/client/rest';
@@ -51,7 +50,6 @@ interface Client extends ClientBase,
     ClientThreadsMix,
     ClientTosMix,
     ClientUsersMix,
-    ClientCallsMix,
     ClientPluginsMix,
     ClientNPSMix,
     ClientCustomAttributesMix,
@@ -81,7 +79,6 @@ class Client extends mix(ClientBase).with(
     ClientThreads,
     ClientTos,
     ClientUsers,
-    ClientCalls,
     ClientPlugins,
     ClientNPS,
     ClientCustomAttributes,

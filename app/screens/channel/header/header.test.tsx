@@ -3,9 +3,6 @@
 
 import React, {type ComponentProps} from 'react';
 
-import {useNavigationHeaderCallButtonForDM} from '@calls/hooks';
-import {getCallsConfig} from '@calls/state';
-import {DefaultCallsConfig} from '@calls/types/calls';
 import NavigationHeader from '@components/navigation_header';
 import {General} from '@constants';
 import {useServerUrl} from '@context/server';
@@ -26,17 +23,6 @@ jest.mock('@screens/navigation');
 jest.mock('@playbooks/screens/navigation');
 jest.mock('@playbooks/actions/remote/runs');
 
-jest.mock('@calls/state', () => ({
-    getCallsConfig: jest.fn().mockReturnValue({
-        pluginEnabled: false,
-    }),
-}));
-
-jest.mock('@calls/hooks', () => ({
-    useNavigationHeaderCallButtonForDM: jest.fn(),
-}));
-const navigationHeaderCallButton = {id: 'calls', iconName: 'phone' as const, onPress: jest.fn(), testID: 'channel_header.quick_call.button'};
-
 const serverUrl = 'some.server.url';
 jest.mock('@context/server');
 jest.mocked(useServerUrl).mockReturnValue(serverUrl);
@@ -51,8 +37,6 @@ describe('ChannelHeader', () => {
             teamId: 'team-id',
             hasPlaybookRuns: false,
             playbooksActiveRuns: 0,
-            callsEnabledInChannel: false,
-            groupCallsAllowed: false,
             isBookmarksEnabled: false,
             canAddBookmarks: false,
             canCallDMUser: true,
@@ -69,102 +53,6 @@ describe('ChannelHeader', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        jest.mocked(getCallsConfig).mockReturnValue({...DefaultCallsConfig, pluginEnabled: false});
-        jest.mocked(useNavigationHeaderCallButtonForDM).mockReturnValue(navigationHeaderCallButton);
-    });
-
-    function enableCalls(props: ComponentProps<typeof ChannelHeader>) {
-        jest.mocked(getCallsConfig).mockReturnValue({...DefaultCallsConfig, pluginEnabled: true});
-        props.callsEnabledInChannel = true;
-        props.groupCallsAllowed = true;
-    }
-
-    function getRightButtons(navHeader: {props: unknown}) {
-        return (navHeader.props as ComponentProps<typeof NavigationHeader>).rightButtons;
-    }
-
-    function getQuickCallButton(navHeader: {props: unknown}) {
-        return getRightButtons(navHeader)?.find((button) => button.testID === navigationHeaderCallButton.testID);
-    }
-
-    it('should show the quick call button in a DM when calls are available', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        expect(getQuickCallButton(getByTestId('navigation-header'))).toBeTruthy();
-        expect(useNavigationHeaderCallButtonForDM).toHaveBeenCalledWith('channel-id', General.DM_CHANNEL);
-    });
-
-    it('should not show the quick call button when calls are disabled in the DM', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-        props.callsEnabledInChannel = false;
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        expect(getQuickCallButton(getByTestId('navigation-header'))).toBeUndefined();
-    });
-
-    it('should not show the quick call button when the DM user cannot be called', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-        props.canCallDMUser = false;
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        expect(getQuickCallButton(getByTestId('navigation-header'))).toBeUndefined();
-    });
-
-    it('should not show the quick call button when the calls plugin is disabled', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-        jest.mocked(getCallsConfig).mockReturnValue({...DefaultCallsConfig, pluginEnabled: false});
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        expect(getQuickCallButton(getByTestId('navigation-header'))).toBeUndefined();
-    });
-
-    it('should not show the quick call button outside of DMs', () => {
-        const props = getBaseProps();
-        enableCalls(props);
-
-        props.channelType = General.GM_CHANNEL;
-        const {getByTestId, rerender} = renderWithIntl(<ChannelHeader {...props}/>);
-        const navHeader = getByTestId('navigation-header');
-        expect(getQuickCallButton(navHeader)).toBeUndefined();
-
-        props.channelType = General.OPEN_CHANNEL;
-        rerender(<ChannelHeader {...props}/>);
-        expect(getQuickCallButton(navHeader)).toBeUndefined();
-    });
-
-    it('should not show the quick call button when the calls hook returns no button', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-        jest.mocked(useNavigationHeaderCallButtonForDM).mockReturnValue(undefined);
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        expect(getQuickCallButton(getByTestId('navigation-header'))).toBeUndefined();
-    });
-
-    it('should place the quick call button before the overflow menu', () => {
-        const props = getBaseProps();
-        props.channelType = General.DM_CHANNEL;
-        enableCalls(props);
-
-        const {getByTestId} = renderWithIntl(<ChannelHeader {...props}/>);
-
-        const rightButtons = (getByTestId('navigation-header').props as ComponentProps<typeof NavigationHeader>).rightButtons;
-        expect(rightButtons?.map((button) => button.iconName)).toEqual(['phone', 'dots-horizontal']);
     });
 
     it('shows playbook button with "+" when there are no active runs', () => {

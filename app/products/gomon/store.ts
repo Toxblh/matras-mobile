@@ -22,6 +22,7 @@ const getSubject = (serverUrl: string) => {
 };
 
 export const getGomonState = (serverUrl: string) => getSubject(serverUrl).value;
+export const observeGomonState = (serverUrl: string) => getSubject(serverUrl).asObservable();
 
 export const setGomonPluginEnabled = (serverUrl: string, pluginEnabled: boolean) => {
     const s = getSubject(serverUrl);

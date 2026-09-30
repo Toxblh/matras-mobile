@@ -11,12 +11,11 @@ import ChannelInfoScreen from '@screens/channel_info';
 type ChannelInfoRouteProps = {
     title: string;
     channelId: string;
-    groupCallsAllowed: boolean;
 }
 
 export default function ChannelInfoRoute() {
     const navigation = useNavigation();
-    const {title, channelId, groupCallsAllowed} = usePropsFromParams<ChannelInfoRouteProps>();
+    const {title, channelId} = usePropsFromParams<ChannelInfoRouteProps>();
     const theme = useTheme();
 
     useNavigationHeader({
@@ -28,9 +27,6 @@ export default function ChannelInfoRoute() {
     });
 
     return (
-        <ChannelInfoScreen
-            channelId={channelId}
-            groupCallsAllowed={groupCallsAllowed}
-        />
+        <ChannelInfoScreen channelId={channelId}/>
     );
 }

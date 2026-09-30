@@ -7,9 +7,9 @@ import {BackgroundTimer} from 'react-native-nitro-bg-timer-plus';
 
 import {fetchStatusByIds} from '@actions/remote/user';
 import {handleFirstConnect, handleReconnect} from '@actions/websocket';
-import {hasActiveNativeCall} from '@calls/native_call_mappings';
 import WebSocketClient from '@client/websocket';
 import DatabaseManager from '@database/manager';
+import {getCurrentGomonCall, type CurrentGomonCall} from '@gomon/store';
 import {getCurrentUserId} from '@queries/servers/system';
 import {queryAllUsers} from '@queries/servers/user';
 import TestHelper from '@test/test_helper';
@@ -25,8 +25,8 @@ jest.mock('@actions/local/user');
 jest.mock('@actions/remote/user');
 jest.mock('@actions/websocket');
 jest.mock('@actions/websocket/event');
-jest.mock('@calls/native_call_mappings', () => ({
-    hasActiveNativeCall: jest.fn().mockReturnValue(false),
+jest.mock('@gomon/store', () => ({
+    getCurrentGomonCall: jest.fn().mockReturnValue(undefined),
 }));
 jest.mock('@client/websocket');
 jest.mock('@database/manager');
@@ -214,8 +214,8 @@ describe('WebsocketManager', () => {
             expect(BackgroundTimer.setTimeout).toHaveBeenCalledWith(expect.any(Function), 15000);
         });
 
-        it('background-close timer skips closeAll while a native call is active', () => {
-            jest.mocked(hasActiveNativeCall).mockReturnValue(true);
+        it('background-close timer skips closeAll while a call is active', () => {
+            jest.mocked(getCurrentGomonCall).mockReturnValue({} as CurrentGomonCall);
 
             let capturedCallback: (() => void) | undefined;
             jest.spyOn(BackgroundTimer, 'setTimeout').mockImplementation((cb) => {
@@ -228,7 +228,7 @@ describe('WebsocketManager', () => {
             mockAppStateChange('background');
 
             jest.clearAllMocks();
-            jest.mocked(hasActiveNativeCall).mockReturnValue(true);
+            jest.mocked(getCurrentGomonCall).mockReturnValue({} as CurrentGomonCall);
             capturedCallback!();
 
             expect(mockWebSocketClient.close).not.toHaveBeenCalled();
@@ -246,7 +246,7 @@ describe('WebsocketManager', () => {
             mockAppStateChange('background');
 
             jest.clearAllMocks();
-            jest.mocked(hasActiveNativeCall).mockReturnValue(false);
+            jest.mocked(getCurrentGomonCall).mockReturnValue(undefined);
             capturedCallback!();
 
             expect(mockWebSocketClient.close).toHaveBeenCalledWith(true);
@@ -308,7 +308,7 @@ describe('WebsocketManager', () => {
             manager.scheduleBackgroundCloseIfNeeded();
 
             jest.clearAllMocks();
-            jest.mocked(hasActiveNativeCall).mockReturnValue(true);
+            jest.mocked(getCurrentGomonCall).mockReturnValue({} as CurrentGomonCall);
             capturedCallback!();
 
             expect(mockWebSocketClient.close).not.toHaveBeenCalled();
@@ -328,7 +328,7 @@ describe('WebsocketManager', () => {
             manager.scheduleBackgroundCloseIfNeeded();
 
             jest.clearAllMocks();
-            jest.mocked(hasActiveNativeCall).mockReturnValue(false);
+            jest.mocked(getCurrentGomonCall).mockReturnValue(undefined);
             capturedCallback!();
 
             expect(mockWebSocketClient.close).toHaveBeenCalledWith(true);

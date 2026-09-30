@@ -6,9 +6,9 @@ import React from 'react';
 import {of as of$} from 'rxjs';
 import {switchMap, distinctUntilChanged} from 'rxjs/operators';
 
-import {observeChannelsWithCalls} from '@calls/state';
 import {General} from '@constants';
 import {withServerUrl} from '@context/server';
+import {observeGomonState} from '@gomon/store';
 import {observeIsMutedSetting, observeMyChannel, queryChannelMembers} from '@queries/servers/channel';
 import {queryDraft} from '@queries/servers/drafts';
 import {observeCurrentChannelId, observeCurrentUserId} from '@queries/servers/system';
@@ -101,8 +101,8 @@ const enhance = withObservables(['channel', 'showTeamName', 'shouldHighlightActi
             distinctUntilChanged(),
         ) : of$(0);
 
-    const hasCall = observeChannelsWithCalls(serverUrl || '').pipe(
-        switchMap((calls) => of$(Boolean(calls[channel.id]))),
+    const hasCall = observeGomonState(serverUrl || '').pipe(
+        switchMap((state) => of$(Boolean(state.calls[channel.id]))),
         distinctUntilChanged(),
     );
 

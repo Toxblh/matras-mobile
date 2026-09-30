@@ -5,7 +5,6 @@ import React, {useCallback} from 'react';
 import {ScrollView, View} from 'react-native';
 import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
-import ChannelInfoEnableCalls from '@calls/components/channel_info_enable_calls';
 import ConvertToChannelLabel from '@components/channel_actions/convert_to_channel/convert_to_channel_label';
 import {Screens} from '@constants';
 import {useTheme} from '@context/theme';
@@ -21,13 +20,11 @@ import ConvertPrivate from './convert_private';
 type Props = {
     canArchive: boolean;
     canConvert: boolean;
-    canEnableDisableCalls: boolean;
     canManageSettings: boolean;
     canUnarchive: boolean;
     channelId: string;
     convertGMOptionAvailable: boolean;
     displayName: string;
-    isCallsEnabledInChannel: boolean;
     canManageAutotranslations: boolean;
     canManageSharedChannel: boolean;
     type?: ChannelType;
@@ -53,13 +50,11 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
 const ChannelSettings = ({
     canArchive,
     canConvert,
-    canEnableDisableCalls,
     canManageSettings,
     canUnarchive,
     channelId,
     convertGMOptionAvailable,
     displayName,
-    isCallsEnabledInChannel,
     canManageAutotranslations,
     canManageSharedChannel,
     type,
@@ -93,12 +88,6 @@ const ChannelSettings = ({
                     canConvert={canConvert}
                     channelId={channelId}
                     displayName={displayName}
-                />
-                }
-                {canEnableDisableCalls &&
-                <ChannelInfoEnableCalls
-                    channelId={channelId}
-                    enabled={isCallsEnabledInChannel}
                 />
                 }
                 {convertGMOptionAvailable &&

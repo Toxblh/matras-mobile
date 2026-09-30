@@ -8,10 +8,10 @@ import {Alert, BackHandler, DeviceEventEmitter, Pressable, StyleSheet, Text, Vie
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import WebViewBase, {type WebViewMessageEvent, type WebViewProps} from 'react-native-webview';
 
-import {foregroundServiceStart, foregroundServiceStop} from '@calls/connection/foreground_service';
 import CompassIcon from '@components/compass_icon';
 import AudioOutputButton from '@gomon/components/audio_output_button';
 import {GOMON_LEAVE} from '@gomon/constants';
+import {foregroundServiceStart, foregroundServiceStop} from '@gomon/foreground_service';
 import {type CurrentGomonCall, setCurrentGomonCall, setGomonMinimized, useCurrentGomonCall} from '@gomon/store';
 import {bridgeCommand, formatCallDuration, nextAudioRoute, parseBridgeMessage, urlOrigin} from '@gomon/utils';
 import {useDefaultHeaderHeight} from '@hooks/header';

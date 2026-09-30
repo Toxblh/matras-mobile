@@ -8,7 +8,6 @@ import {addChannelToDefaultCategory, removeChannelFromManagedCategoryIfNeeded, h
 import {markChannelAsViewed, removeCurrentUserFromChannel, setChannelDeleteAt, storeAllMyChannels, storeMyChannelsForTeam, switchToChannel, deletePostsForChannel} from '@actions/local/channel';
 import {switchToGlobalDrafts} from '@actions/local/draft';
 import {switchToGlobalThreads} from '@actions/local/thread';
-import {loadCallForChannel} from '@calls/actions/calls';
 import {DeepLink, Events, General, Preferences, Screens} from '@constants';
 import DatabaseManager from '@database/manager';
 import {privateChannelJoinPrompt} from '@helpers/api/channel';
@@ -721,7 +720,6 @@ export async function joinChannel(serverUrl: string, teamId: string, channelId?:
     }
 
     if (channelId || channel?.id) {
-        loadCallForChannel(serverUrl, channelId || channel!.id);
         EphemeralStore.removeJoiningChannel(channelId || channel!.id);
     }
     return {channel, member};

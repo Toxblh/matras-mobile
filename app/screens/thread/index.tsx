@@ -4,8 +4,6 @@
 import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {distinctUntilChanged, switchMap, of as of$} from 'rxjs';
 
-import {observeCallStateInChannel} from '@calls/observers';
-import {withServerUrl} from '@context/server';
 import {observeChannel} from '@queries/servers/channel';
 import {observePost} from '@queries/servers/post';
 import {observeScheduledPostCountForThread} from '@queries/servers/scheduled_post';
@@ -18,11 +16,10 @@ import Thread from './thread';
 import type {WithDatabaseArgs} from '@typings/database/database';
 
 type EnhanceProps = WithDatabaseArgs & {
-    serverUrl: string;
     rootId: string;
 }
 
-const enhanced = withObservables(['rootId'], ({database, serverUrl, rootId}: EnhanceProps) => {
+const enhanced = withObservables(['rootId'], ({database, rootId}: EnhanceProps) => {
     const rId = rootId || EphemeralStore.getCurrentThreadId();
     const rootPost = observePost(database, rId);
 
@@ -45,7 +42,6 @@ const enhanced = withObservables(['rootId'], ({database, serverUrl, rootId}: Enh
 
     return {
         isCRTEnabled: observeIsCRTEnabled(database),
-        ...observeCallStateInChannel(serverUrl, database, channelId),
         rootId: of$(rId),
         rootPost,
         includeChannelBanner,
@@ -53,4 +49,4 @@ const enhanced = withObservables(['rootId'], ({database, serverUrl, rootId}: Enh
     };
 });
 
-export default withDatabase(withServerUrl(enhanced(Thread)));
+export default withDatabase(enhanced(Thread));

@@ -3,7 +3,6 @@
 
 import React from 'react';
 
-import CopyChannelLinkOption from '@components/channel_actions/copy_channel_link_option';
 import {General} from '@constants';
 import PlaybookRunsOption from '@playbooks/components/channel_actions/playbook_runs_option';
 import {isTypeDMorGM} from '@utils/channel';
@@ -22,7 +21,6 @@ import ResetChannelPosts from './reset_channel_posts';
 type Props = {
     channelId: string;
     type?: ChannelType;
-    callsEnabled: boolean;
     canManageMembers: boolean;
     isCRTEnabled: boolean;
     isPlaybooksEnabled: boolean;
@@ -34,7 +32,6 @@ type Props = {
 const Options = ({
     channelId,
     type,
-    callsEnabled,
     canManageMembers,
     isCRTEnabled,
     isPlaybooksEnabled,
@@ -77,12 +74,6 @@ const Options = ({
             }
             {canManageMembers &&
                 <AddMembers channelId={channelId}/>
-            }
-            {callsEnabled && !isDMorGM && // if calls is not enabled, copy link will show in the channel actions
-                <CopyChannelLinkOption
-                    channelId={channelId}
-                    testID='channel_info.options.copy_channel_link.option'
-                />
             }
             <ResetChannelPosts channelId={channelId}/>
         </>

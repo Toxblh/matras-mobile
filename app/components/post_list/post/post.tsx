@@ -12,8 +12,6 @@ import {fetchAndSwitchToThread} from '@actions/remote/thread';
 import AgentMentionReminderPost from '@agents/components/agent_mention_reminder_post';
 import AgentPost from '@agents/components/agent_post';
 import {isAgentMentionReminderPost, isAgentPost} from '@agents/utils';
-import CallsCustomMessage from '@calls/components/calls_custom_message';
-import {isCallsCustomMessage} from '@calls/utils';
 import UnrevealedBurnOnReadPost from '@components/post_list/post/burn_on_read/unrevealed';
 import SystemAvatar from '@components/system_avatar';
 import SystemHeader from '@components/system_header';
@@ -180,7 +178,6 @@ const Post = ({
     const isPendingOrFailed = isPostPendingOrFailed(post);
     const isFailed = isPostFailed(post);
     const isSystemPost = isSystemMessage(post);
-    const isCallsPost = isCallsCustomMessage(post);
     const borPost = isBoRPost(post);
     const isUnrevealedPost = isUnrevealedBoRPost(post);
     const isOwnPost = Boolean(currentUser && post.userId === currentUser.id);
@@ -380,19 +377,6 @@ const Post = ({
             <SystemMessage
                 location={location}
                 post={post}
-            />
-        );
-    } else if (isCallsPost && !hasBeenDeleted) {
-        body = (
-            <CallsCustomMessage
-                serverUrl={serverUrl}
-                post={post}
-
-                // Note: the below are provided by the index, but typescript seems to be having problems.
-                otherParticipants={false}
-                isAdmin={false}
-                isHost={false}
-                joiningChannelId={null}
             />
         );
     } else if (isGomonCallPost(post) && !hasBeenDeleted) {

@@ -7,7 +7,6 @@ import {type Edge, SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area
 
 import {storeLastViewedChannelIdAndServer, removeLastViewedChannelIdAndServer} from '@actions/app/global';
 import {fetchPostsForChannel} from '@actions/remote/post';
-import FloatingCallContainer from '@calls/components/floating_call_container';
 import {Events, Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
@@ -27,17 +26,11 @@ import type PreferenceModel from '@typings/database/models/servers/preference';
 
 type ChannelProps = {
     channelId: string;
-    showJoinCallBanner: boolean;
-    isInACall: boolean;
-    isCallsEnabledInChannel: boolean;
-    groupCallsAllowed: boolean;
-    showIncomingCalls: boolean;
     isTabletView?: boolean;
     dismissedGMasDMNotice: PreferenceModel[];
     currentUserId: string;
     channelType: ChannelType;
     hasGMasDMFeature: boolean;
-    includeBookmarkBar?: boolean;
     includeChannelBanner: boolean;
     scheduledPostCount: number;
 };
@@ -50,17 +43,11 @@ const styles = StyleSheet.create({
 
 const Channel = ({
     channelId,
-    showJoinCallBanner,
-    isInACall,
-    isCallsEnabledInChannel,
-    groupCallsAllowed,
-    showIncomingCalls,
     isTabletView,
     dismissedGMasDMNotice,
     channelType,
     currentUserId,
     hasGMasDMFeature,
-    includeBookmarkBar,
     includeChannelBanner,
     scheduledPostCount,
 }: ChannelProps) => {
@@ -128,8 +115,6 @@ const Channel = ({
         setContainerHeight(e.nativeEvent.layout.height);
     }, []);
 
-    const showFloatingCallContainer = showJoinCallBanner || isInACall || showIncomingCalls;
-
     return (
         <SafeAreaView
             style={styles.flex}
@@ -139,8 +124,6 @@ const Channel = ({
         >
             <ChannelHeader
                 channelId={channelId}
-                callsEnabledInChannel={isCallsEnabledInChannel}
-                groupCallsAllowed={groupCallsAllowed}
                 isTabletView={isTabletView}
                 shouldRenderBookmarks={shouldRender}
                 shouldRenderChannelBanner={includeChannelBanner}
@@ -154,16 +137,6 @@ const Channel = ({
                     enabled={isVisible}
                 />
             )}
-            {showFloatingCallContainer && shouldRender &&
-            <FloatingCallContainer
-                channelId={channelId}
-                showJoinCallBanner={showJoinCallBanner}
-                showIncomingCalls={showIncomingCalls}
-                isInACall={isInACall}
-                includeBookmarkBar={includeBookmarkBar}
-                includeChannelBanner={includeChannelBanner}
-            />
-            }
         </SafeAreaView>
     );
 };

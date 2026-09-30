@@ -12,7 +12,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import Video, {SelectedTrackType, type OnPlaybackStateChangedData, type ReactVideoPoster, type ReactVideoSource, type VideoRef} from 'react-native-video';
 
 import {updateLocalFilePath} from '@actions/local/file';
-import {getTranscriptionUri, hasCaptions} from '@calls/utils';
 import {Events} from '@constants';
 import {ANDROID_VIDEO_INSET, GALLERY_FOOTER_HEIGHT, VIDEO_INSET} from '@constants/gallery';
 import {useServerUrl} from '@context/server';
@@ -22,6 +21,7 @@ import DownloadWithAction from '@screens/gallery/footer/download_with_action';
 import {useLightboxSharedValues} from '@screens/gallery/lightbox_swipeout/context';
 import {toMilliseconds} from '@utils/datetime';
 
+import {getTranscriptionUri, hasCaptions} from './captions';
 import VideoError from './error';
 import {useStateFromSharedValue} from './hooks';
 import VideoControls from './video_controls';

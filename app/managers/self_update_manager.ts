@@ -9,7 +9,6 @@ import {defineMessages} from 'react-intl';
 import {Alert, AppState, DeviceEventEmitter, NativeModules, Platform} from 'react-native';
 import {BehaviorSubject} from 'rxjs';
 
-import {getCurrentCall} from '@calls/state';
 import {getCurrentGomonCall} from '@gomon/store';
 import {getIntlShape} from '@utils/general';
 import {logWarning} from '@utils/log';
@@ -50,7 +49,7 @@ const messages = defineMessages({
 // Download progress 0..1 (-1: size unknown); undefined when idle. Shown by SelfUpdateProgress.
 export const selfUpdateProgress = new BehaviorSubject<number | undefined>(undefined);
 
-const inCall = () => Boolean(getCurrentGomonCall() || getCurrentCall());
+const inCall = () => Boolean(getCurrentGomonCall());
 
 const waitUntilNoCall = () => new Promise<void>((resolve) => {
     if (!inCall()) {

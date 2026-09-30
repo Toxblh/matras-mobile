@@ -6,8 +6,6 @@ import {useIntl} from 'react-intl';
 import {DeviceEventEmitter, Platform, Text, View} from 'react-native';
 
 import {useAgentsConfig} from '@agents/store/agents_config';
-import {useNavigationHeaderCallButtonForDM} from '@calls/hooks';
-import {getCallsConfig} from '@calls/state';
 import {CHANNEL_ACTIONS_OPTIONS_HEIGHT} from '@components/channel_actions/channel_actions';
 import ChannelBanner from '@components/channel_banner';
 import CompassIcon from '@components/compass_icon';
@@ -51,8 +49,6 @@ type ChannelProps = {
     isOwnDirectMessage: boolean;
     memberCount?: number;
     teamId: string;
-    callsEnabledInChannel: boolean;
-    groupCallsAllowed: boolean;
     isTabletView?: boolean;
     shouldRenderBookmarks: boolean;
     shouldRenderChannelBanner: boolean;
@@ -105,8 +101,6 @@ const ChannelHeader = ({
     isOwnDirectMessage,
     memberCount,
     teamId,
-    callsEnabledInChannel,
-    groupCallsAllowed,
     isTabletView,
     shouldRenderBookmarks,
     shouldRenderChannelBanner,
@@ -123,19 +117,10 @@ const ChannelHeader = ({
     const defaultHeight = useDefaultHeaderHeight();
     const serverUrl = useServerUrl();
 
-    const callsConfig = getCallsConfig(serverUrl);
     const {pluginEnabled: agentsEnabled} = useAgentsConfig(serverUrl);
-
-    // NOTE: callsEnabledInChannel will be true/false (not undefined) based on explicit state + the DefaultEnabled system setting
-    //   which ultimately comes from channel/index.tsx, and observeIsCallsEnabledInChannel
-    let callsAvailable = callsConfig.pluginEnabled && callsEnabledInChannel;
-    if (!groupCallsAllowed && channelType !== General.DM_CHANNEL) {
-        callsAvailable = false;
-    }
 
     const isDMorGM = isTypeDMorGM(channelType);
     const isDM = isDMChannel(channelType);
-    const navigationHeaderCallButton = useNavigationHeaderCallButtonForDM(channelId, channelType);
     const gomonCallButton = useGomonHeaderButton(channelId);
     const contextStyle = useMemo(() => ({
         top: defaultHeight,
@@ -168,15 +153,11 @@ const ChannelHeader = ({
                 break;
         }
 
-        navigateToScreen(Screens.CHANNEL_INFO, {channelId, title, groupCallsAllowed});
-    }), [channelId, channelType, groupCallsAllowed, intl]));
+        navigateToScreen(Screens.CHANNEL_INFO, {channelId, title});
+    }), [channelId, channelType, intl]));
 
     const onChannelQuickAction = useCallback(() => {
-        // When calls is enabled, we need space to move the "Copy Link" from a button to an option
         let items = 2;
-        if (callsAvailable && !isDMorGM) {
-            items += 1;
-        }
         if (hasPlaybookRuns && !isDMorGM) {
             items += 1;
         }
@@ -189,7 +170,6 @@ const ChannelHeader = ({
             return (
                 <QuickActions
                     channelId={channelId}
-                    callsEnabled={callsAvailable}
                     isDMorGM={isDMorGM}
                     hasPlaybookRuns={hasPlaybookRuns}
                 />
@@ -197,7 +177,7 @@ const ChannelHeader = ({
         };
 
         bottomSheet(renderContent, [1, height]);
-    }, [callsAvailable, isDMorGM, hasPlaybookRuns, agentsEnabled, channelId]);
+    }, [isDMorGM, hasPlaybookRuns, agentsEnabled, channelId]);
 
     const openPlaybooksRuns = useCallback(() => {
         // If no active runs, create a new one instead
@@ -234,10 +214,6 @@ const ChannelHeader = ({
             buttons.push(gomonCallButton);
         }
 
-        if (isDM && callsAvailable && canCallDMUser && navigationHeaderCallButton) {
-            buttons.push(navigationHeaderCallButton);
-        }
-
         buttons.push({
             id: 'channel-quick-actions',
             iconName: Platform.select({android: 'dots-vertical', default: 'dots-horizontal'}),
@@ -246,7 +222,7 @@ const ChannelHeader = ({
         });
 
         return buttons;
-    }, [isPlaybooksEnabled, playbooksActiveRuns, isDMorGM, onChannelQuickAction, openPlaybooksRuns, isDM, callsAvailable, canCallDMUser, navigationHeaderCallButton, gomonCallButton]);
+    }, [isPlaybooksEnabled, playbooksActiveRuns, isDMorGM, onChannelQuickAction, openPlaybooksRuns, isDM, canCallDMUser, gomonCallButton]);
 
     let title = displayName;
     if (isOwnDirectMessage) {

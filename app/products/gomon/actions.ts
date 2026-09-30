@@ -4,12 +4,11 @@
 import {defineMessages, type IntlShape} from 'react-intl';
 import {Alert, AppState, DeviceEventEmitter} from 'react-native';
 
-import {hasCameraPermission, hasMicrophonePermission, leaveCall} from '@calls/actions';
-import {getCurrentCall} from '@calls/state/current_call';
 import {Screens} from '@constants';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
 import DatabaseManager from '@database/manager';
 import {GOMON_EVENTS, GOMON_INCOMING_CLOSED} from '@gomon/constants';
+import {hasCameraPermission, hasMicrophonePermission} from '@gomon/permissions';
 import {getCurrentGomonCall, setCurrentGomonCall, setGomonChannelCall, setGomonMinimized, setGomonPluginEnabled} from '@gomon/store';
 import {buildEmbedUrl, isGomonPluginEnabled, isLiveState} from '@gomon/utils';
 import NetworkManager from '@managers/network_manager';
@@ -65,9 +64,6 @@ export async function fetchGomonChannelCall(serverUrl: string, channelId: string
 export async function openGomonCall(intl: IntlShape, serverUrl: string, channelId: string, joinUrl: string, video: boolean, callId?: string) {
     if (expandActiveGomonCall(intl, serverUrl, channelId)) {
         return;
-    }
-    if (getCurrentCall()) {
-        leaveCall();
     }
     await hasMicrophonePermission();
     const withCamera = video && await hasCameraPermission(intl);

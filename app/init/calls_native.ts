@@ -1,12 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import CallsNative, {
-    type CallActionPayload,
-    type CallMutePayload,
-    type IncomingCallPayload,
-    type VoIPTokenUpdated,
-} from '@mattermost/calls-native';
+import CallsNative, {type CallActionPayload, type VoIPTokenUpdated} from '@mattermost/calls-native';
 import {defineMessages} from 'react-intl';
 import {Alert, DeviceEventEmitter, Platform, type EmitterSubscription} from 'react-native';
 
@@ -37,46 +32,27 @@ defineMessages({
 });
 
 import {storeVoIPDeviceToken} from '@actions/app/global';
-import {dismissIncomingCall, hasMicrophonePermission, joinCall, leaveCall, muteMyself, unmuteMyself} from '@calls/actions';
-import {hasBluetoothPermission} from '@calls/actions/permissions';
-import {
-    clearNativeCallMapping,
-    getNativeCallMapping,
-    setNativeCallMapping,
-} from '@calls/native_call';
-import {
-    getCurrentCall,
-    getCallsState,
-    setMicPermissionsGranted,
-} from '@calls/state';
 import {Device} from '@constants';
-import DatabaseManager from '@database/manager';
 import {GOMON_LEAVE} from '@gomon/constants';
 import {getCurrentGomonCall} from '@gomon/store';
 import {DEFAULT_LOCALE} from '@i18n';
-import WebsocketManager from '@managers/websocket_manager';
-import {getServerByIdentifier} from '@queries/app/servers';
-import {getCurrentUser} from '@queries/servers/user';
 import {getIntlShape, isBetaApp} from '@utils/general';
-import {logDebug, logError, logInfo} from '@utils/log';
+import {logInfo} from '@utils/log';
 
+// matras: Mattermost Calls is removed. What is left is the platform glue gomon uses:
+// the full-screen-intent prompt, the iOS VoIP token and the Android ongoing-call "Hang up".
 class CallsNativeSingleton {
     subscriptions?: EmitterSubscription[];
 
     init() {
-        // matras: Android raises the same events from its incoming-call notification
-        // (MMCallsIncomingCall), so both platforms subscribe.
         if (Platform.OS === 'android') {
             this.askForFullScreenCalls();
         }
         this.subscriptions?.forEach((s) => s.remove());
         this.subscriptions = [
             CallsNative.onVoIPTokenUpdated(this.onVoIPTokenUpdated),
-            CallsNative.onIncomingCall(this.onIncomingCall),
             CallsNative.onCallAnswered(this.onCallAnswered),
-            CallsNative.onCallDeclined(this.onCallDeclined),
             CallsNative.onCallEnded(this.onCallEnded),
-            CallsNative.onMuteChanged(this.onMuteChanged),
         ];
     }
 
@@ -124,148 +100,16 @@ class CallsNativeSingleton {
         logInfo('VoIP device token stored');
     };
 
-    private onIncomingCall = async (payload: IncomingCallPayload) => {
-        const {uuid, serverId, channelId, postId, threadId} = payload;
-
-        if (!serverId) {
-            logDebug('onIncomingCall received without serverId; ignoring', uuid);
-            return;
-        }
-        if (!channelId) {
-            logDebug('onIncomingCall received without channelId; ignoring', uuid);
-            return;
-        }
-
-        const server = await getServerByIdentifier(serverId);
-        if (!server?.url) {
-            logDebug('onIncomingCall could not resolve serverId to a known server', serverId);
-
-            // Tell native to clear the Native UI so the user isn't stuck.
-            CallsNative.reportEnded(uuid, 'failed');
-            return;
-        }
-
-        setNativeCallMapping(uuid, {
-            serverUrl: server.url,
-            channelId,
-            postId,
-            threadId,
-            callId: getCallsState(server.url).calls[channelId]?.id ?? '',
-        });
-
-        // Open WS to the call's server so user_dismissed_notification /
-        // call_end / answered_elsewhere events arrive live while CallKit is
-        // ringing. Fire-and-forget: idempotent if already connected, and we
-        // don't want to delay the handler on a slow first-connect sync.
-        WebsocketManager.initializeClient(server.url);
+    // iOS: a VoIP push still rings CallKit, but nothing here can join a Mattermost Calls
+    // call any more. Close the native UI instead of leaving it on "Connecting…".
+    private onCallAnswered = (event: CallActionPayload) => {
+        CallsNative.reportEnded(event.uuid, 'failed');
     };
 
-    private onCallAnswered = async (event: CallActionPayload) => {
-        const {uuid} = event;
-        const mapping = getNativeCallMapping(uuid);
-        if (!mapping) {
-            // No mapping means we can't route the answer anywhere; tell
-            // Native to close the UI so the user isn't stuck in
-            // "Connecting…" forever.
-            CallsNative.reportEnded(uuid, 'failed');
-            return;
-        }
-
-        const {serverUrl, channelId, threadId} = mapping;
-
-        try {
-            const {database} = DatabaseManager.getServerDatabaseAndOperator(serverUrl);
-            const user = await getCurrentUser(database);
-            if (!user) {
-                logError('onCallAnswered: no current user for server', serverUrl);
-                CallsNative.reportEnded(uuid, 'failed');
-                clearNativeCallMapping(uuid);
-                return;
-            }
-
-            // If the user was in another call, leave it without prompting —
-            // they already chose to answer via the Native overlay.
-            const currentCall = getCurrentCall();
-            if (currentCall && (currentCall.serverUrl !== serverUrl || currentCall.channelId !== channelId)) {
-                leaveCall();
-            }
-
-            await hasBluetoothPermission();
-            const hasMic = await hasMicrophonePermission();
-            setMicPermissionsGranted(hasMic);
-
-            const intl = getIntlShape(user.locale);
-            const res = await joinCall(serverUrl, channelId, user.id, hasMic, intl, undefined, threadId);
-            if (res.error) {
-                logError('onCallAnswered: joinCall failed', res.error);
-                CallsNative.reportEnded(uuid, 'failed');
-                clearNativeCallMapping(uuid);
-                return;
-            }
-
-            // Native is showing "Connecting…"; flip to "Connected" so the
-            // timer starts. joinCall awaits waitForPeerConnection before
-            // returning, so we know RTC is up at this point.
-            CallsNative.reportConnected(uuid);
-
-            // Ring notifications only fire for DM/GM, so an answered native
-            // call is always DM/GM — match the in-app DM/GM join behavior
-            // and unmute. unmuteMyself mirrors the state to the native UI.
-            unmuteMyself();
-        } catch (error) {
-            logError('onCallAnswered failed', error);
-            CallsNative.reportEnded(uuid, 'failed');
-            clearNativeCallMapping(uuid);
-        }
-    };
-
-    private onCallDeclined = async (event: CallActionPayload) => {
-        const {uuid} = event;
-        const mapping = getNativeCallMapping(uuid);
-        clearNativeCallMapping(uuid);
-        if (!mapping) {
-            return;
-        }
-        await dismissIncomingCall(mapping.serverUrl, mapping.channelId);
-    };
-
-    private onCallEnded = (event: CallActionPayload) => {
-        const {uuid} = event;
-        const mapping = getNativeCallMapping(uuid);
-        clearNativeCallMapping(uuid);
-        if (!mapping) {
-            // matras: on Android the only unmapped CallEnded is "Hang up" on the
-            // ongoing-call notification, which always means the current call.
-            if (Platform.OS === 'android' && getCurrentGomonCall()) {
-                DeviceEventEmitter.emit(GOMON_LEAVE);
-            } else if (Platform.OS === 'android' && getCurrentCall()) {
-                leaveCall();
-            }
-            return;
-        }
-
-        // If we're still in the call (the user ended via the Native
-        // overlay rather than the in-app UI), tear down the RTC connection.
-        const currentCall = getCurrentCall();
-        if (currentCall && currentCall.serverUrl === mapping.serverUrl && currentCall.channelId === mapping.channelId) {
-            leaveCall();
-        }
-    };
-
-    private onMuteChanged = (event: CallMutePayload) => {
-        const {uuid, muted} = event;
-        const mapping = getNativeCallMapping(uuid);
-        if (!mapping) {
-            return;
-        }
-        const currentCall = getCurrentCall();
-        if (!currentCall || currentCall.serverUrl !== mapping.serverUrl || currentCall.channelId !== mapping.channelId) {
-            return;
-        }
-        if (muted) {
-            muteMyself();
-        } else {
-            unmuteMyself();
+    // Android: "Hang up" on the ongoing-call notification.
+    private onCallEnded = () => {
+        if (Platform.OS === 'android' && getCurrentGomonCall()) {
+            DeviceEventEmitter.emit(GOMON_LEAVE);
         }
     };
 }

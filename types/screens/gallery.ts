@@ -1,9 +1,15 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import type {Caption} from '@mattermost/calls/lib/types';
 import type {PanGesture, TapGesture} from 'react-native-gesture-handler';
 import type {SharedValue} from 'react-native-reanimated';
+
+// Calls-recording caption track (post props `captions`).
+export type Caption = {
+    title: string;
+    language: string;
+    file_id: string;
+};
 
 export type GalleryManagerSharedValues = {
     width: SharedValue<number>;

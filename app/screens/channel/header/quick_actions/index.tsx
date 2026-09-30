@@ -7,7 +7,6 @@ import {View} from 'react-native';
 import {useAgentsConfig} from '@agents/store/agents_config';
 import ChannelActions from '@components/channel_actions';
 import AskAgentsOption from '@components/channel_actions/ask_agents_option';
-import CopyChannelLinkOption from '@components/channel_actions/copy_channel_link_option';
 import InfoBox from '@components/channel_actions/info_box';
 import LeaveChannelLabel from '@components/channel_actions/leave_channel_label';
 import {useServerUrl} from '@context/server';
@@ -18,7 +17,6 @@ import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 
 export type ChannelQuickActionsProps = {
     channelId: string;
-    callsEnabled: boolean;
     isDMorGM: boolean;
     hasPlaybookRuns: boolean;
 }
@@ -45,7 +43,6 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => ({
 
 const ChannelQuickActions = ({
     channelId,
-    callsEnabled,
     isDMorGM,
     hasPlaybookRuns,
 }: ChannelQuickActionsProps) => {
@@ -60,7 +57,6 @@ const ChannelQuickActions = ({
                 <ChannelActions
                     channelId={channelId}
                     dismissChannelInfo={dismissBottomSheet}
-                    callsEnabled={callsEnabled}
                     testID='channel.quick_actions'
                 />
             </View>
@@ -73,12 +69,6 @@ const ChannelQuickActions = ({
                 <PlaybookRunsOption
                     channelId={channelId}
                     location='quick_actions'
-                />
-            }
-            {callsEnabled && !isDMorGM && // if calls is not enabled, copy link will show in the channel actions
-                <CopyChannelLinkOption
-                    channelId={channelId}
-                    showAsLabel={true}
                 />
             }
             {agentsEnabled && (
