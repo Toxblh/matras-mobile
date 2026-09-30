@@ -118,6 +118,9 @@ android {
         testBuildType System.getProperty('testBuildType', 'debug')
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+        // matras: the commit the APK was built from; self-update compares it with the
+        // android-<version>-<sha8> release tag. Empty outside CI → self-update is off.
+        buildConfigField "String", "MATRAS_GIT_SHA", "\"${(System.getenv('GITHUB_SHA') ?: '').take(8)}\""
 
         // Detox is included as a source subproject (see android/settings.gradle).
         // Its build.gradle declares product flavors `full` and `coreNative` on a

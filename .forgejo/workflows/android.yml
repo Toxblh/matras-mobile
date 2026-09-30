@@ -104,6 +104,9 @@ jobs:
           echo "release keystore подключён"
 
       - name: gradle assembleRelease (arm64 + x86_64)
+        env:
+          # BuildConfig.MATRAS_GIT_SHA: self-update compares it with the release tag.
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
           cd android
@@ -127,13 +130,16 @@ jobs:
           token="${RELEASE_TOKEN:-$GH_TOKEN}"
           version="$(sed -nE 's/.*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -1)"
           short="${COMMIT_SHA:0:8}"
+          # Release notes = commit message: the app shows them in its update prompt.
+          git config --global --add safe.directory "$PWD"
+          notes="$(git log -1 --format=%B "$COMMIT_SHA" 2>/dev/null || true)"
           tag="android-${version}-${short}"
           cd android/app/build/outputs/apk/release
           apk="$(ls *.apk | head -1)"
           mv "$apk" "matras-${version}-${short}.apk"; apk="matras-${version}-${short}.apk"
           sha256sum "$apk" > SHA256SUMS
-          body=$(jq -nc --arg t "$tag" --arg c "$COMMIT_SHA" \
-            '{tag_name:$t,target_commitish:$c,name:$t,body:"Android APK ветки matras (android.yml).",draft:false,prerelease:true}')
+          body=$(jq -nc --arg t "$tag" --arg c "$COMMIT_SHA" --arg n "${notes:-Android APK ветки matras (android.yml).}" \
+            '{tag_name:$t,target_commitish:$c,name:$t,body:$n,draft:false,prerelease:true}')
           resp=$(curl -fsS --show-error -X POST -H "Authorization: token $token" -H 'Content-Type: application/json' \
             -d "$body" "$API_BASE/repos/$REPO/releases")
           rid=$(printf '%s' "$resp" | jq -r '.id')
