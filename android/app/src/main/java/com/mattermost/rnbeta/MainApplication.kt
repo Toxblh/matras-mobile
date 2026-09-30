@@ -14,6 +14,8 @@ import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.common.ReleaseLevel
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.facebook.react.modules.network.OkHttpClientProvider
+import com.livekit.reactnative.LiveKitReactNative
+import com.livekit.reactnative.audio.AudioType
 import com.mattermost.callsnative.MMCallsAvatars
 import com.mattermost.helpers.CustomPushNotificationHelper
 import com.mattermost.networkclient.RCTOkHttpClientFactory
@@ -57,6 +59,9 @@ class MainApplication : Application(), ReactApplication, INotificationsApplicati
 
         // Initialize Sentry early for native crash reporting
         RNSentrySDK.init(this)
+
+        // matras: native gomon calls (LiveKit). Must run before React Native starts.
+        LiveKitReactNative.setup(this, AudioType.CommunicationAudioType())
 
         // Delete any previous temp files created by the app
         val tempFolder = File(applicationContext.cacheDir, RealPathUtil.CACHE_DIR_NAME)

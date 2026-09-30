@@ -7,6 +7,7 @@ import RNNotifications
 import RNSentry
 import react_native_paste_input
 import mattermost_calls_native
+import livekit_react_native
 import mattermost_rnutils
 import mattermost_hardware_keyboard
 import TurboLogIOSNative
@@ -85,6 +86,9 @@ class AppDelegate: ExpoAppDelegate, OrientationLockable {
         // PKPushRegistry + CXProvider on the main queue, synchronously,
         // before any VoIP push delegate can fire.
         CallsBridge.shared.bootstrap()
+
+        // matras: native gomon calls (LiveKit). Before React Native starts.
+        LivekitReactNative.setup()
 
         #if canImport(mattermost_intune)
         // Initialize Intune MAM delegates BEFORE React Native
