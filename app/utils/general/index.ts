@@ -51,6 +51,9 @@ export const sortByNewest = (a: SortByCreatAt, b: SortByCreatAt) => {
 
 export const isBetaApp = applicationId && applicationId.includes('rnbeta');
 
+// Debug JS or the side-by-side dev app (ru.toxblh.matras.dev, gradle -PmatrasDevSuffix=true)
+export const isMatrasDevBuild = __DEV__ || Boolean(applicationId?.endsWith('.dev'));
+
 // getContrastingSimpleColor returns a contrasting color - either black or white, depending on the luminance
 // of the supplied color. Both input and output colors are in hexadecimal color code.
 // This function is copied from Mattermost webapp -

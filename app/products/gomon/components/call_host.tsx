@@ -3,7 +3,7 @@
 
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {defineMessages, IntlProvider, useIntl} from 'react-intl';
-import {LogBox, Pressable, StyleSheet, View} from 'react-native';
+import {Linking, LogBox, Pressable, StyleSheet, View} from 'react-native';
 import WebViewBase, {type WebViewMessageEvent, type WebViewProps} from 'react-native-webview';
 
 import CompassIcon from '@components/compass_icon';
@@ -13,6 +13,7 @@ import GomonCallLayout, {callStyles} from '@gomon/components/call_layout';
 import {type CurrentGomonCall, setCurrentGomonCall, useCurrentGomonCall} from '@gomon/store';
 import {bridgeCommand, parseBridgeMessage, urlOrigin} from '@gomon/utils';
 import {getTranslations} from '@i18n';
+import {isMatrasDevBuild} from '@utils/general';
 import {tryOpenURL} from '@utils/url';
 
 import type {ShouldStartLoadRequest} from 'react-native-webview/lib/WebViewTypes';
@@ -155,9 +156,9 @@ const NativeCall = (props: {call: CurrentGomonCall}) => {
     return <C {...props}/>;
 };
 
-// Debug builds only: open a native call by its join URL without a Mattermost login (tests drive
+// Debug and dev-app builds only: open a native call by its join URL without a Mattermost login (tests drive
 // it over the JS debugger: Runtime.evaluate `__gomonDebugJoin(url)`).
-if (__DEV__) {
+if (isMatrasDevBuild) {
     (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = (url: string, withCamera = true, channelId = '') => {
         LogBox.ignoreAllLogs(true); // the dev overlay covers the call controls in screenshots
         setCurrentGomonCall({
@@ -172,6 +173,16 @@ if (__DEV__) {
             minimized: false,
         });
     };
+
+    // adb shell am start -a android.intent.action.VIEW -d 'matrasdev://gomon/join?url=<encoded join url>'
+    const joinFromLink = (url: string | null) => {
+        const m = url?.match(/^matrasdev:\/\/gomon\/join\?url=([^&]+)/);
+        if (m) {
+            (globalThis as {__gomonDebugJoin?: (url: string) => void}).__gomonDebugJoin?.(decodeURIComponent(m[1]));
+        }
+    };
+    Linking.getInitialURL().then(joinFromLink);
+    Linking.addEventListener('url', ({url}) => joinFromLink(url));
 }
 
 /** Mounted once above navigation: the active gomon call, full screen or as a floating bar. */

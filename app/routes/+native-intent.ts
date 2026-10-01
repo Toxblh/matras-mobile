@@ -7,7 +7,7 @@ import urlParse from 'url-parse';
 import {Sso} from '@constants';
 import {DEFAULT_LOCALE} from '@i18n';
 import {alertInvalidDeepLink, parseAndHandleDeepLink} from '@utils/deep_link';
-import {getIntlShape} from '@utils/general';
+import {getIntlShape, isMatrasDevBuild} from '@utils/general';
 
 /**
  * Custom native intent handler for expo-router
@@ -26,6 +26,11 @@ const handleUrl = async (event: {url: string}) => {
     // Ignore SSO redirect URLs
     if (event.url?.startsWith(Sso.REDIRECT_URL_SCHEME) ||
             event.url?.startsWith(Sso.REDIRECT_URL_SCHEME_DEV)) {
+        return true;
+    }
+
+    // Debug builds: matrasdev:// links belong to the gomon debug join (call_host.tsx)
+    if (isMatrasDevBuild && event.url?.startsWith('matrasdev://')) {
         return true;
     }
 
