@@ -41,17 +41,27 @@ final class PushKitController: NSObject, PKPushRegistryDelegate {
                       didReceiveIncomingPushWith payload: PKPushPayload,
                       for type: PKPushType,
                       completion: @escaping () -> Void) {
-        guard type == .voIP, let bridge = bridge else {
+        guard type == .voIP else {
+            completion()
+            return
+        }
+        handle(payload.dictionaryPayload, verify: true, completion: completion)
+    }
+
+    /// matras: the only VoIP push is gomon's incoming call (`sub_type` = `comms_call`, sent by
+    /// the ru.corp.comms plugin with Transport voip); CallKit rings it as a video call. JS answers
+    /// it through the plugin (gomon `acceptGomonFromPush`). `verify` is false only for the debug
+    /// path of simulated pushes (`CallsBridge.bootstrap`, debug builds).
+    func handle(_ dict: [AnyHashable: Any], verify: Bool, completion: @escaping () -> Void) {
+        guard let bridge = bridge else {
             completion()
             return
         }
 
-        let dict = payload.dictionaryPayload
-
         // Authenticate the push via Gekidou's VoIP-aware signature
         // verification. Same JWT mechanism as the standard push path, but
         // compares against the stored VoIP token (not the standard one).
-        guard Gekidou.PushNotification.default.verifyVoIPSignature(dict) else {
+        guard !verify || Gekidou.PushNotification.default.verifyVoIPSignature(dict) else {
             GekidouLogger.shared.log(.warning,
                 "PushKitController: VoIP push signature verification failed; reporting + ending")
             bridge.callKitProvider.reportIncomingCall(
@@ -74,7 +84,7 @@ final class PushKitController: NSObject, PKPushRegistryDelegate {
         let channelName = (dict["channel_name"] as? String) ?? ""
 
         GekidouLogger.shared.log(.info,
-            "PushKitController: VoIP push received channelID=\(channelID)")
+            "PushKitController: VoIP push received channelID=\(channelID) subType=\((dict["sub_type"] as? String) ?? "")")
 
         // Resolve the user's ringtone preference synchronously from the
         // per-server DB via Gekidou so CallKit plays the right sound.

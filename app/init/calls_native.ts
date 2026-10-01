@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import CallsNative, {type CallActionPayload, type VoIPTokenUpdated} from '@mattermost/calls-native';
+import CallsNative, {type CallActionPayload, type IncomingCallPayload, type VoIPTokenUpdated} from '@mattermost/calls-native';
 import {defineMessages} from 'react-intl';
 import {Alert, DeviceEventEmitter, Platform, type EmitterSubscription} from 'react-native';
 
@@ -32,18 +32,25 @@ defineMessages({
 });
 
 import {storeVoIPDeviceToken} from '@actions/app/global';
-import {Device} from '@constants';
+import DatabaseManager from '@database/manager';
+import {acceptGomonFromPush, declineGomonFromPush} from '@gomon/actions';
+import {isCurrentCallKitCall, setCallKitAnswered} from '@gomon/callkit';
 import {GOMON_LEAVE} from '@gomon/constants';
 import {initGomonTelecom} from '@gomon/native/android_telecom';
 import {getCurrentGomonCall} from '@gomon/store';
 import {DEFAULT_LOCALE} from '@i18n';
-import {getIntlShape, isBetaApp} from '@utils/general';
+import {getCurrentUser} from '@queries/servers/user';
+import {getIntlShape} from '@utils/general';
 import {logInfo} from '@utils/log';
+import {pushPlatformPrefix} from '@utils/push_platform';
 
 // matras: Mattermost Calls is removed. What is left is the platform glue gomon uses:
-// the full-screen-intent prompt, the iOS VoIP token and the Android ongoing-call "Hang up".
+// the full-screen-intent prompt, the iOS VoIP token and CallKit, the Android ongoing-call "Hang up".
 class CallsNativeSingleton {
     subscriptions?: EmitterSubscription[];
+
+    // iOS: CallKit calls rung by a VoIP push, until answered or declined.
+    private rung = new Map<string, IncomingCallPayload>();
 
     init() {
         if (Platform.OS === 'android') {
@@ -53,7 +60,9 @@ class CallsNativeSingleton {
         this.subscriptions?.forEach((s) => s.remove());
         this.subscriptions = [
             CallsNative.onVoIPTokenUpdated(this.onVoIPTokenUpdated),
+            CallsNative.onIncomingCall(this.onIncomingCall),
             CallsNative.onCallAnswered(this.onCallAnswered),
+            CallsNative.onCallDeclined(this.onCallDeclined),
             CallsNative.onCallEnded(this.onCallEnded),
         ];
     }
@@ -93,24 +102,52 @@ class CallsNativeSingleton {
             return;
         }
 
-        let prefix = Device.PUSH_NOTIFY_APPLE_REACT_NATIVE;
-        if (isBetaApp) {
-            prefix = `${prefix}beta`;
-        }
-        const prefixed = `${prefix}-v2:${token}`;
+        const prefixed = `${pushPlatformPrefix()}-v2:${token}`;
         await storeVoIPDeviceToken(prefixed);
         logInfo('VoIP device token stored');
     };
 
-    // iOS: a VoIP push still rings CallKit, but nothing here can join a Mattermost Calls
-    // call any more. Close the native UI instead of leaving it on "Connecting…".
-    private onCallAnswered = (event: CallActionPayload) => {
-        CallsNative.reportEnded(event.uuid, 'failed');
+    private onIncomingCall = (event: IncomingCallPayload) => {
+        this.rung.set(event.uuid, event);
     };
 
-    // Android: "Hang up" on the ongoing-call notification.
-    private onCallEnded = () => {
-        if (Platform.OS === 'android' && getCurrentGomonCall()) {
+    private takeRung = async (uuid: string) => {
+        const rung = this.rung.get(uuid);
+        this.rung.delete(uuid);
+        const serverUrl = rung && await DatabaseManager.getServerUrlFromIdentifier(rung.serverId);
+        return rung && serverUrl ? {serverUrl, channelId: rung.channelId} : undefined;
+    };
+
+    // iOS: "Answer" on the CallKit screen of a gomon VoIP push (sub_type comms_call) accepts
+    // the invitation through the plugin; the call it opens adopts this CallKit call.
+    private onCallAnswered = async ({uuid}: CallActionPayload) => {
+        const rung = await this.takeRung(uuid);
+        if (!rung) {
+            CallsNative.reportEnded(uuid, 'failed');
+            return;
+        }
+        const {serverUrl, channelId} = rung;
+        setCallKitAnswered({uuid, serverUrl, channelId});
+        const database = DatabaseManager.serverDatabases[serverUrl]?.database;
+        const user = database ? await getCurrentUser(database) : undefined;
+        await acceptGomonFromPush(getIntlShape(user?.locale), serverUrl, channelId);
+        const call = getCurrentGomonCall();
+        if (call?.serverUrl !== serverUrl || call.channelId !== channelId) {
+            setCallKitAnswered(undefined);
+            CallsNative.reportEnded(uuid, 'failed');
+        }
+    };
+
+    private onCallDeclined = async ({uuid}: CallActionPayload) => {
+        const rung = await this.takeRung(uuid);
+        if (rung) {
+            declineGomonFromPush(rung.serverUrl, rung.channelId);
+        }
+    };
+
+    // "Hang up" on the Android ongoing-call notification or the iOS CallKit screen.
+    private onCallEnded = ({uuid}: CallActionPayload) => {
+        if (getCurrentGomonCall() && (Platform.OS === 'android' || isCurrentCallKitCall(uuid))) {
             DeviceEventEmitter.emit(GOMON_LEAVE);
         }
     };

@@ -1,11 +1,12 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {ScreenCapturePickerView} from '@livekit/react-native-webrtc';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {ConnectionQuality} from 'livekit-client';
 import React, {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
-import {Alert, Pressable, StyleSheet, Text, View, type AlertButton} from 'react-native';
+import {Alert, NativeModules, Platform, Pressable, StyleSheet, Text, View, findNodeHandle, type AlertButton} from 'react-native';
 
 import CompassIcon, {type CompassIconName} from '@components/compass_icon';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
@@ -19,6 +20,7 @@ import {showSnackBar} from '@utils/snack_bar';
 
 import {pickPipTile} from './android_pip';
 import {androidMessages, useAndroidCallPlatform} from './android_platform';
+import {useCallKitSession} from './callkit_session';
 import {messages} from './messages';
 import {confOf, REACTIONS} from './shared/conf';
 import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
@@ -135,6 +137,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             media.current.mediaStarted(cam, mic);
         },
     });
+    useCallKitSession(call, {connected: nc.connected, micOn: nc.micOn, setMic: nc.setMic});
     const {room, call: snapshot} = nc;
     const conf = confOf(snapshot);
     const others = room.remoteParticipants.size;
@@ -237,6 +240,23 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             toast(intl.formatMessage(messages.linkCopied));
         }
     }, [snapshot?.meet_url, intl]);
+
+    // iOS: the system broadcast picker starts the Broadcast Upload Extension (ScreenShare
+    // target), whose frames reach LiveKit through the app group socket.
+    const picker = useRef(null);
+    const sharing = room.localParticipant.isScreenShareEnabled;
+    const toggleScreenShare = useCallback(async () => {
+        setSheet(null);
+        try {
+            if (!sharing) {
+                await NativeModules.ScreenCapturePickerViewManager.show(findNodeHandle(picker.current));
+            }
+            await room.localParticipant.setScreenShareEnabled(!sharing);
+        } catch (e) {
+            logWarning('gomon native: screen share', e);
+        }
+        tick();
+    }, [room, sharing]);
 
     let chatBadge = '';
     if (nc.chat?.mentioned) {
@@ -436,6 +456,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             confirmLeave={false}
         >
             {body}
+            {Platform.OS === 'ios' && <ScreenCapturePickerView ref={picker}/>}
             <Sheet
                 visible={sheet === 'more'}
                 onClose={() => setSheet(null)}
@@ -483,6 +504,14 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                             android.toggleShare();
                         }}
                         testID='gomon_call.more.share_screen'
+                    />
+                }
+                {Platform.OS === 'ios' &&
+                    <SheetItem
+                        icon='monitor-share'
+                        text={intl.formatMessage(sharing ? messages.screenShareStop : messages.screenShare)}
+                        onPress={toggleScreenShare}
+                        testID='gomon_call.more.screen_share'
                     />
                 }
                 <SheetItem

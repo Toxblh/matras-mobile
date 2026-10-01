@@ -4,7 +4,7 @@
 import CallsNative, {type AudioDeviceType, type AudioRoute} from '@mattermost/calls-native';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
-import {BackHandler, DeviceEventEmitter} from 'react-native';
+import {BackHandler, DeviceEventEmitter, Platform} from 'react-native';
 
 import {GOMON_LEAVE} from '@gomon/constants';
 import {foregroundServiceStart, foregroundServiceStop} from '@gomon/foreground_service';
@@ -91,7 +91,11 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
                 if (telecom) {
                     foregroundServiceStart(intl, fgCamera.current, serverUrl, channelId); // + the phoneCall type
                 }
-                await CallsNative.startAudioSession();
+
+                // iOS native call: CallKit activates the audio session (native/callkit_session.ts).
+                if (!(Platform.OS === 'ios' && call.native)) {
+                    await CallsNative.startAudioSession();
+                }
                 onRoute(await CallsNative.getAudioRoute());
             }).
             catch((e) => logWarning('gomon: audio session', e));

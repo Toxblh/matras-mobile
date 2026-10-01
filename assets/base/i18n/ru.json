@@ -606,6 +606,8 @@
   "gomon.reactions": "Реакции",
   "gomon.reconnecting": "Восстанавливаем связь…",
   "gomon.return_to_call": "Вернуться к звонку",
+  "gomon.screen_share": "Показать экран",
+  "gomon.screen_share_stop": "Остановить показ экрана",
   "gomon.search": "Поиск",
   "gomon.start_call": "Звонок",
   "gomon.unmute": "Включить микрофон",

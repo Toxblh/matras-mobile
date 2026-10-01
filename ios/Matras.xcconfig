@@ -1,0 +1,7 @@
+// matras: the app's identity in one place (base configuration of the project; every target, the
+// app group of the app and its extensions and the keychain group derive from it).
+// The Matras id is ru.toxblh.matras (push prefix apple_matras, see app/utils/push_platform). It
+// needs its App ID, the extensions' ids and group.ru.toxblh.matras in the owner's Apple account
+// (docs/credentials-setup.md); until then the app keeps Mattermost's beta id.
+MATRAS_BUNDLE_ID = com.mattermost.rnbeta
+MATRAS_APP_GROUP = group.$(MATRAS_BUNDLE_ID)

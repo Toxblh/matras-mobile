@@ -2,12 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>AppGroupIdentifier</key>
-	<string>$(MATRAS_APP_GROUP)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>NotificationService</string>
+	<string>Matras</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,15 +23,13 @@
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>
-		<string>com.apple.usernotifications.service</string>
+		<string>com.apple.broadcast-services-upload</string>
 		<key>NSExtensionPrincipalClass</key>
-		<string>$(PRODUCT_MODULE_NAME).NotificationService</string>
+		<string>$(PRODUCT_MODULE_NAME).SampleHandler</string>
+		<key>RPBroadcastProcessMode</key>
+		<string>RPBroadcastProcessModeSampleBuffer</string>
 	</dict>
-	<key>RCTNewArchEnabled</key>
-	<true/>
-	<key>SENTRY_DSN_IOS</key>
-	<string>$(SENTRY_DSN_IOS)</string>
-	<key>SENTRY_ENABLED</key>
-	<string>$(SENTRY_ENABLED)</string>
+	<key>RTCAppGroupIdentifier</key>
+	<string>$(MATRAS_APP_GROUP)</string>
 </dict>
 </plist>

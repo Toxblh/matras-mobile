@@ -275,6 +275,58 @@ Core-Telecom (эндпоинты, фокус) вместо ручного роу
 - Один BT-эндпоинт в пикере (первый из списка Telecom) — при двух гарнитурах выбора нет.
 - Демонстрация без звука; на Android 14+ согласие спрашивается на каждую сессию (так задумано системой).
 
+## Итоги фазы 3 (2026-10-01, ветка `gomon-ios`)
+
+iOS-платформа для нативного звонка. Собирается на Mac (Xcode 26.6, симулятор iOS 26.5); всё, что требует устройства или ключей Apple, собрано и подготовлено, но не проверено.
+
+### Что сделано
+
+- **Нативный звонок по умолчанию и на iOS.** WebView — запасной путь за тем же флагом (долгое нажатие на заголовок); CallKit — только у нативного звонка (WKWebView сам владеет аудиосессией).
+- **CallKit** (`@mattermost/calls-native`): провайдер — `supportsVideo`, входящий и исходящий — видеозвонки. `native/callkit_session.ts`: звонок из приложения сообщает исходящий CallKit-звонок (`reportOutgoingCall` → `reportConnected` → `reportEnded`), mute из приложения отражается на экране CallKit, mute и «Завершить» из CallKit/экрана блокировки приходят в звонок (`CallMuted`, `CallEnded` → `GOMON_LEAVE`, только для своего UUID).
+- **Аудио.** `CallsBridge.bootstrap` ставит `LKRTCAudioSession.useManualAudio`; на симуляторе проверено, что AVAudioEngine-ADM LiveKit (144) это соблюдает: при `isAudioEnabled=false` движок останавливается. Значит, CallKit-рецепт calls-native (`didActivate` → `audioSessionDidActivate` + `isAudioEnabled=true`) и есть передача сессии LiveKit; `AudioSession` LiveKit не запускается (`autoConfigureAudioSession:false`), `setEngineAvailability` не нужен. Исправлено: `startAudioSession` (путь без CallKit) всегда включает `isAudioEnabled` — раньше категория `playAndRecord` от прошлого звонка давала ранний выход, и движок второго звонка не стартовал.
+- **VoIP-пуш.** `PushKitController` синхронно репортит `comms_call` в CallKit (как раньше, теперь видео). JS (`app/init/calls_native.ts`): «Ответить» → `acceptGomonFromPush` (`POST /plugins/ru.corp.comms/api/v1/channels/{id}/accept`, при неудаче — join живого звонка), открытый звонок усыновляет CallKit-звонок (`gomon/callkit.ts`); если звонок не открылся — `reportEnded(failed)`; «Отклонить» → `declineGomonFromPush`. Debug-сборка: `xcrun simctl spawn booted notifyutil -p ru.toxblh.matras.debug-voip` прогоняет тестовый пуш через тот же путь (без проверки подписи) — у симулятора нет PushKit-пушей.
+- **Префикс устройства** — `app/utils/push_platform`: `apple_matras` для `ru.toxblh.matras`, иначе `apple_rnbeta`/`apple_rn`; один и тот же для обычного и VoIP-токена (`push_notifications.ts`, `calls_native.ts`). Android не менялся (`android_rn`).
+- **PiP**: одна удалённая плитка (камера говорящего, иначе демонстрация) рисуется через PiP-вид форка WebRTC (`AVPictureInPictureVideoCallViewController` + `AVSampleBufferDisplayLayer`), `startAutomatically`/`stopAutomatically`. `WebRTCModuleOptions.enableMultitaskingCameraAccess = true` (iOS 18+ с `voip` в фоновых режимах — без entitlement).
+- **Демонстрация экрана**: таргет `ScreenShare` (Broadcast Upload Extension, `$(MATRAS_BUNDLE_ID).ScreenShare`, app group), кадры JPEG по unix-сокету `rtc_SSFD` в контейнере группы — формат, который читает `ScreenCapturer` форка (сжатый пример Jitsi, `ios/ScreenShare/SampleHandler.swift`); в «Ещё» пункт «Показать экран» (iOS) — системный пикер, затем `setScreenShareEnabled`.
+- **Идентичность в одном месте**: `ios/Matras.xcconfig` (базовая конфигурация проекта): `MATRAS_BUNDLE_ID`, `MATRAS_APP_GROUP = group.$(MATRAS_BUNDLE_ID)`. Из них — bundle id всех четырёх таргетов, `AppGroupIdentifier`/`RTCAppGroupIdentifier` в Info.plist, группы в entitlements, keychain group. Пока `com.mattermost.rnbeta`; переход на `ru.toxblh.matras` — одна строка после регистрации App ID (credentials-setup.md). `DEVELOPMENT_TEAM` в таргетах — всё ещё команда Mattermost, поменять вместе с переходом.
+- Русские тексты запросов разрешений (`ru.lproj/InfoPlist.strings`). Фоновые режимы `audio`+`voip` уже были.
+- `Podfile.lock`/проект после `pod install`: `LiveKitWebRTC` вместо `JitsiWebRTC` (хвост фазы 0).
+- **Сервер** (comms `eb83806`): `pushIncoming` шлёт `Transport: voip` — iOS-сессии с VoIP-токеном получают PushKit, Android и сессии без VoIP-токена — обычный пуш (сервер откатывается сам, MM ≥ 11.10). `server/public` v0.3.1 → v0.4.3 (первая с `PushTransportVoIP` после 0.4.2), `go 1.26.3` (golang в ALT p11 — 1.26.7), плагин 0.1.15. `go vet`, `go test` — ок.
+
+### Как проверялось
+
+Симулятор iPhone 17 Pro (iOS 26.5), debug-сборка с ad-hoc подписью (`CODE_SIGN_IDENTITY=-`: без подписи RNKeychain падает на старте — нет keychain-entitlement). Стенд gomon.toxblh.ru не использовался — HMAC-секрет плагина агенту не выдан; вместо него стенд без секретов (comms `5feb74f`): LiveKit dev-server v1.9.12 в podman на Linux + `tests/e2e/tools/p3-mock-api.mjs` (эндпоинты медиа-API, которые зовёт телефон; реакции — серверные пакеты `topic=conf` через `RoomService.SendData`) + `p3-lk-peer.mjs` (headless Chromium «Анна Веб», поддельные камера/микрофон). Звонок открывается `__gomonDebugJoin` через CDP Metro (порт 8092), тапы — `idb` (idb-companion из Homebrew на Mac). Скриншоты — `docs/evidence/phase3/`.
+
+| Проверка | Результат | Доказательство |
+|---|---|---|
+| Сборка приложения и расширения `ScreenShare` (симулятор) | ок | — |
+| Подключение, видео с веба на телефон | ок: 640×360, 15 fps | `01` |
+| Видео с телефона | нет: у симулятора нет камеры (трек публикуется, кадров 0) | — |
+| Микрофон/камера вкл/выкл, плитки и значки | ок, веб видит mute | `02`, `03` |
+| Чат в обе стороны, счётчик непрочитанных | ок (через мок API) | `03`, `04` |
+| «Ещё»: реакции, участники, «Показать экран» | ок; реакции в обе стороны | `05`, `06` |
+| Свернуть в панель | ок | `07` |
+| Строки звонка на русском | ок (после `scripts/generate-assets.js` — `dist/assets` на Mac были от фазы 0) | `01`–`07` |
+| Исходящий CallKit | на симуляторе не работает: `callservicesd` сразу разрывает — «there wont be a UI to host the call»; поэтому вне устройства (`expo-device isDevice`) CallKit пропускается и звук включает calls-native | — |
+| Звук | RTP с веба приходит (байты растут), но не играет (`totalAudioEnergy` 0); у Simulator нет доступа к микрофону Mac (TCC), голосовой движок не стартует — на устройстве | — |
+| Авто-PiP при уходе в фон | на симуляторе нет: PiP-контроллер создаётся, SpringBoard отвечает `ShouldAutoPiP: NO` (нет активной аудиосессии звонка) — на устройстве | — |
+| PushKit-токен | выдаётся и на симуляторе (160 символов, лог calls-native) | — |
+| Входящий из VoIP-пуша (debug: `notifyutil -p ru.toxblh.matras.debug-voip`) | путь PushKit → `reportNewIncomingCall` (видео) отрабатывает; симулятор не показывает CallKit-экран и сразу завершает звонок («no UI to host the call») — ответ/отклонение только на устройстве | `08-voip-debug-push.log` |
+
+### Что нужно устройство и ключи Apple
+
+1. Членство Apple Developer, App ID `ru.toxblh.matras` (+ `.NotificationService`, `.MattermostShare`, `.ScreenShare`), группа `group.ru.toxblh.matras`, ключ APNs `.p8` — credentials-setup.md; затем `MATRAS_BUNDLE_ID` в `Matras.xcconfig` и `DEVELOPMENT_TEAM`.
+2. Свой push-proxy с `apple_matras` (push-proxy.md) и патч allowlist префиксов в сервере MM 11.10 (§2.1) — **до** выпуска сборки с `ru.toxblh.matras`, иначе логин с `apple_matras-v2:` получит 400.
+3. На iPhone (iOS 18 и 26): входящий из VoIP-пуша при убитом приложении и на экране блокировки, ответ/отклонение из CallKit, mute/завершить из CallKit, звук в обе стороны и маршруты (динамик/BT), PiP при уходе в фон и камера в PiP, демонстрация экрана из расширения, 10 мин в фоне.
+4. Проверить, что пуши плагина подписаны сервером: VoIP-путь Gekidou требует подпись (`verifyVoIPSignature`, `requireSignature: true`), неподписанный пуш звонит и сразу сбрасывается.
+
+### Риски
+
+- Плагин шлёт `voip` всем iOS-сессиям с VoIP-токеном, включая официальное приложение Mattermost (`apple_rn*`, его PushKit-путь для Calls): оно покажет CallKit-звонок, к которому не сможет присоединиться. Если у пользователей есть официальное приложение — слать VoIP только Matras-сессиям (по префиксу `apple_matras`, когда появится) или отказаться от него.
+- Исходящий CallKit на симуляторе не проверяется вовсе (пропускается) — первый прогон на устройстве покажет, всё ли верно с `didActivate` и звуком.
+- LiveCommunicationKit не делали (флаг в фазе 4); CallKit покрывает нужное.
+- Отладочные крючки (`__gomonDebugJoin`, Darwin-уведомление тестового звонка) — только в debug-сборке.
+
 ## Источники
 
 - LiveKit RN SDK, релизы: https://github.com/livekit/client-sdk-react-native/releases ; PR #455 (prefixed WebRTC): https://github.com/livekit/client-sdk-react-native/pull/455 ; issue #468: https://github.com/livekit/client-sdk-react-native/issues/468 ; #134 New Arch: https://github.com/livekit/client-sdk-react-native/issues/134

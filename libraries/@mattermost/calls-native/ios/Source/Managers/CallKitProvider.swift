@@ -50,10 +50,9 @@ private struct CallInfo {
         self.bridge = bridge
 
         let configuration = CXProviderConfiguration()
-        // Calls today is audio + screen share — no front-camera video. Screen
-        // share doesn't surface through CallKit (it's handled in-app), so
-        // CallKit's video affordance stays off.
-        configuration.supportsVideo = false
+        // matras: the only CallKit calls are gomon calls (sub_type comms_call), which are
+        // video calls: CallKit says "Matras Video" and starts on the speaker.
+        configuration.supportsVideo = true
         configuration.maximumCallGroups = 2
         configuration.maximumCallsPerCallGroup = 1
         configuration.supportedHandleTypes = [.generic]
@@ -109,7 +108,7 @@ private struct CallInfo {
         // configs the ack-receipt round-trip refreshes it via
         // updateCallerName(uuid:name:).
         update.localizedCallerName = Self.bestInitialDisplayName(request)
-        update.hasVideo = false
+        update.hasVideo = true
         update.supportsHolding = false
         update.supportsGrouping = false
         update.supportsUngrouping = false
@@ -188,7 +187,7 @@ private struct CallInfo {
 
         let handle = CXHandle(type: .generic, value: calleeName.isEmpty ? channelID : calleeName)
         let startAction = CXStartCallAction(call: uuid, handle: handle)
-        startAction.isVideo = false
+        startAction.isVideo = true
         startAction.contactIdentifier = calleeName
 
         let transaction = CXTransaction(action: startAction)

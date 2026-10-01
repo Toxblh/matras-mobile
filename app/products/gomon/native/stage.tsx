@@ -5,7 +5,7 @@ import {VideoTrack} from '@livekit/react-native';
 import {ConnectionQuality, Track, type Participant, type TrackPublication} from 'livekit-client';
 import React, {useState, type ReactNode} from 'react';
 import {useIntl} from 'react-intl';
-import {Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
+import {Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import CompassIcon from '@components/compass_icon';
@@ -108,9 +108,12 @@ type TileProps = {
     flying: Flying[];
     onPress: () => void;
     small?: boolean;
+
+    /** iOS: this tile's video goes to Picture in Picture when the app leaves the screen. */
+    pip?: boolean;
 };
 
-const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small}: TileProps) => {
+const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small, pip}: TileProps) => {
     const intl = useIntl();
     const {p, pub, screen, local} = info;
     const visible = Boolean(pub?.track) && !pub?.isMuted;
@@ -132,6 +135,7 @@ const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small
                     style={styles.video}
                     objectFit={screen ? 'contain' : 'cover'}
                     mirror={local && !screen && mirror}
+                    iosPIP={pip ? {enabled: true, startAutomatically: true, stopAutomatically: true, preferredSize: pub?.dimensions ?? {width: 16, height: 9}} : undefined}
                 />
             ) : (
                 <Avatar
@@ -253,6 +257,10 @@ const Stage = ({tiles, conf, layout, lastSpeaker, mirror, flying}: StageProps) =
     const pinKeys = pins.filter((k) => byKey.has(k));
     const shares = tiles.filter((t) => t.screen);
 
+    // iOS Picture in Picture shows one remote video: the speaker's camera, else a shared screen.
+    const remoteVideo = Platform.OS === 'ios' ? tiles.filter((t) => !t.local && t.pub?.track && !t.pub.isMuted) : [];
+    const pipKey = (remoteVideo.find((t) => t.key === tileKey(lastSpeaker ?? '', 'camera')) || remoteVideo.find((t) => t.screen) || remoteVideo[0])?.key;
+
     let mode: 'grid' | 'speaker' = layout === 'grid' ? 'grid' : 'speaker';
     if (layout === 'auto') {
         mode = pinKeys.length || shares.length ? 'speaker' : 'grid';
@@ -293,6 +301,7 @@ const Stage = ({tiles, conf, layout, lastSpeaker, mirror, flying}: StageProps) =
             flying={flying}
             onPress={() => onTap(t)}
             small={small}
+            pip={t.key === pipKey}
         />
     );
 

@@ -72,6 +72,20 @@ import LiveKitWebRTC
         _ = pushKitController
         _ = callKitProvider
         _ = audioSession
+
+        #if DEBUG
+        // matras: the simulator gets no VoIP pushes. In debug builds
+        // `xcrun simctl spawn booted notifyutil -p ru.toxblh.matras.debug-voip` rings a gomon
+        // incoming call through the PushKit path (without the signature check).
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), nil, { _, _, _, _, _ in
+            DispatchQueue.main.async {
+                CallsBridge.shared.pushKitController.handle([
+                    "sub_type": "comms_call", "channel_id": "debug-channel", "server_id": "debug-server",
+                    "channel_name": "Анна Веб", "sender_id": "debug", "sender_name": "Анна Веб",
+                ], verify: false) {}
+            }
+        }, "ru.toxblh.matras.debug-voip" as CFString, nil, .deliverImmediately)
+        #endif
     }
 
     /// Called by `MMCallsNative.startObserving` when JS has attached its

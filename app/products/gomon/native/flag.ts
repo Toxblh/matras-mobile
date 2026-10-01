@@ -1,20 +1,18 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {Platform} from 'react-native';
-
 import {storeGlobal} from '@actions/app/global';
 import {MM_TABLES} from '@constants/database';
 import DatabaseManager from '@database/manager';
 
 import type GlobalModel from '@typings/database/models/app/global';
 
-// matras: gomon calls run natively (LiveKit SDK) by default on Android; the WebView call stays as
-// the fallback behind this app-wide flag, toggled by a long press on the call title. iOS keeps
-// the WebView by default until the native call is verified there (phase 3).
+// matras: gomon calls run natively (LiveKit SDK) by default; the WebView call stays as the
+// fallback behind this app-wide flag, toggled by a long press on the call title. On iOS only the
+// native call is a CallKit call (WKWebView owns its audio session and conflicts with CallKit).
 const FLAG_ID = 'gomonNativeCalls';
 
-const NATIVE_BY_DEFAULT = Platform.OS === 'android';
+const NATIVE_BY_DEFAULT = true;
 
 let enabled: boolean | undefined;
 

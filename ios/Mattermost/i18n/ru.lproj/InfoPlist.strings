@@ -1,0 +1,11 @@
+/* matras: system permission prompts in Russian */
+"NSCameraUsageDescription" = "Камера нужна для видео в звонках, фото и видео в сообщениях.";
+"NSMicrophoneUsageDescription" = "Микрофон нужен для звонков и записи видео в сообщения.";
+"NSBluetoothAlwaysUsageDescription" = "Bluetooth нужен, чтобы звук звонков шёл в гарнитуру.";
+"NSBluetoothPeripheralUsageDescription" = "Bluetooth нужен, чтобы звук звонков шёл в гарнитуру.";
+"NSPhotoLibraryUsageDescription" = "Доступ к фото позволяет прикреплять снимки и видео к сообщениям.";
+"NSPhotoLibraryAddUsageDescription" = "Доступ к фото позволяет сохранять полученные снимки и видео.";
+"NSAppleMusicUsageDescription" = "Доступ к медиатеке позволяет прикреплять файлы из неё к сообщениям.";
+"NSFaceIDUsageDescription" = "Face ID защищает Matras от посторонних.";
+"NSLocationWhenInUseUsageDescription" = "Геопозиция нужна, чтобы сообщить администратору имя Wi-Fi-сети, если этого требует политика безопасности.";
+"NSSpeechRecognitionUsageDescription" = "Распознавание речи нужно для голосовых сообщений.";
