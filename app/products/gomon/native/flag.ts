@@ -1,15 +1,20 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {Platform} from 'react-native';
+
 import {storeGlobal} from '@actions/app/global';
 import {MM_TABLES} from '@constants/database';
 import DatabaseManager from '@database/manager';
 
 import type GlobalModel from '@typings/database/models/app/global';
 
-// matras: native (LiveKit) gomon calls are a prototype behind this app-wide flag; the WebView
-// call stays the default. Toggled by a long press on the call title.
+// matras: gomon calls run natively (LiveKit SDK) by default on Android; the WebView call stays as
+// the fallback behind this app-wide flag, toggled by a long press on the call title. iOS keeps
+// the WebView by default until the native call is verified there (phase 3).
 const FLAG_ID = 'gomonNativeCalls';
+
+const NATIVE_BY_DEFAULT = Platform.OS === 'android';
 
 let enabled: boolean | undefined;
 
@@ -18,9 +23,9 @@ export async function isGomonNativeEnabled() {
         try {
             const {database} = DatabaseManager.getAppDatabaseAndOperator();
             const row = await database.get<GlobalModel>(MM_TABLES.APP.GLOBAL).find(FLAG_ID);
-            enabled = row.value === true;
+            enabled = typeof row.value === 'boolean' ? row.value : NATIVE_BY_DEFAULT;
         } catch {
-            enabled = false;
+            enabled = NATIVE_BY_DEFAULT;
         }
     }
     return enabled;
