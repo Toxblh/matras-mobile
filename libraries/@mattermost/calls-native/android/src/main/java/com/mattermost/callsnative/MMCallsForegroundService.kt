@@ -116,9 +116,15 @@ class MMCallsForegroundService : Service() {
     private var text = ""
     private var avatar: Bitmap? = null
 
+    // matras: a CallStyle notification is refused (IllegalArgumentException from the system) unless
+    // the service is in the foreground: a state change racing the start or the stop must not crash.
     private fun repost() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, buildNotification(channelId, title, text, avatar))
+        try {
+            manager.notify(NOTIFICATION_ID, buildNotification(channelId, title, text, avatar))
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "call notification not updated", e)
+        }
     }
 
     override fun onDestroy() {
@@ -131,7 +137,6 @@ class MMCallsForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        current = this
         val channelId = intent?.getStringExtra(EXTRA_CHANNEL_ID) ?: "calls_channel"
         val channelName = intent?.getStringExtra(EXTRA_CHANNEL_NAME) ?: "Mattermost"
         val channelDescription = intent?.getStringExtra(EXTRA_CHANNEL_DESCRIPTION) ?: ""
@@ -177,6 +182,7 @@ class MMCallsForegroundService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        current = this // refresh() reposts only through a service that is in the foreground
 
         // matras: the DM partner's avatar arrives after a network fetch; start the service
         // immediately (Android requires it within seconds) and re-post once we have it.
