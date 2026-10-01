@@ -66,8 +66,11 @@ import LiveKitWebRTC
     /// unconfigured, so we configure it here as a fallback and surface any error.
     @objc(startAudioSessionWithError:)
     public func startAudioSession() throws {
-        guard avSession.category != .playAndRecord else { return }
-        try configureForCallThrowing()
+        if avSession.category != .playAndRecord {
+            try configureForCallThrowing()
+        }
+        // matras: always, the category outlives a previous call whose teardown disabled audio;
+        // with manual audio the LiveKit audio engine does not run until this is set.
         rtcSession.isAudioEnabled = true
     }
 

@@ -17,6 +17,7 @@ import {type CurrentGomonCall, setCurrentGomonCall} from '@gomon/store';
 import {logWarning} from '@utils/log';
 import {showSnackBar} from '@utils/snack_bar';
 
+import {useCallKitSession} from './callkit_session';
 import {messages} from './messages';
 import {confOf, REACTIONS} from './shared/conf';
 import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
@@ -130,6 +131,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             }
         },
     });
+    useCallKitSession(call, {connected: nc.connected, micOn: nc.micOn, setMic: nc.setMic});
     const {room, call: snapshot} = nc;
     const conf = confOf(snapshot);
     const others = room.remoteParticipants.size;

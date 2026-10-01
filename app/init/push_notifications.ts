@@ -21,7 +21,7 @@ import {storeDeviceToken} from '@actions/app/global';
 import {markChannelAsViewed} from '@actions/local/channel';
 import {updateThread} from '@actions/local/thread';
 import {backgroundNotification, openNotification} from '@actions/remote/notifications';
-import {Device, Events, PushNotification, Screens} from '@constants';
+import {Events, PushNotification, Screens} from '@constants';
 import DatabaseManager from '@database/manager';
 import {acceptGomonFromPush} from '@gomon/actions';
 import {GOMON_PUSH_SUB_TYPE} from '@gomon/constants';
@@ -33,10 +33,11 @@ import {getCurrentUser} from '@queries/servers/user';
 import EphemeralStore from '@store/ephemeral_store';
 import InAppNotificationStore from '@store/in_app_notification_store';
 import {NavigationStore} from '@store/navigation_store';
-import {getIntlShape, isBetaApp} from '@utils/general';
+import {getIntlShape} from '@utils/general';
 import {isMainActivity, isTablet} from '@utils/helpers';
 import {logDebug, logInfo, logWarning} from '@utils/log';
 import {convertToNotificationData} from '@utils/notification';
+import {pushPlatformPrefix} from '@utils/push_platform';
 
 const messages = defineMessages({
     replyTitle: {
@@ -306,16 +307,7 @@ class PushNotificationsSingleton {
         if (!this.configured) {
             this.configured = true;
             const {deviceToken} = event;
-            let prefix;
-
-            if (Platform.OS === 'ios') {
-                prefix = Device.PUSH_NOTIFY_APPLE_REACT_NATIVE;
-                if (isBetaApp) {
-                    prefix = `${prefix}beta`;
-                }
-            } else {
-                prefix = Device.PUSH_NOTIFY_ANDROID_REACT_NATIVE;
-            }
+            const prefix = pushPlatformPrefix();
 
             const token = `${prefix}-v2:${deviceToken}`;
             storeDeviceToken(token);
