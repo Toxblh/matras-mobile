@@ -4,7 +4,6 @@
 import {defineMessages} from 'react-intl';
 
 export const messages = defineMessages({
-    micOffShort: {id: 'gomon.mic_off_short', defaultMessage: 'microphone off'},
     companionSub: {id: 'gomon.companion_sub', defaultMessage: 'No microphone or camera, the call’s sound is off'},
     tileOpenHint: {id: 'gomon.tile_open_hint', defaultMessage: 'Opens the shared screen full screen'},
     tilePinHint: {id: 'gomon.tile_pin_hint', defaultMessage: 'Pins or unpins the tile'},

@@ -133,8 +133,6 @@ const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small
             style={[styles.tile, {width, height}, speaking && styles.speaking]}
             testID={`gomon_call.tile.${local ? 'local' : 'remote'}${screen ? '.screen' : ''}`}
 
-            // a changing label re-creates the native view on Android and blanks the video under it:
-            // the mic state is the mic-off icon's own label
             accessibilityLabel={name}
             accessibilityHint={intl.formatMessage(screen ? messages.tileOpenHint : messages.tilePinHint)}
         >

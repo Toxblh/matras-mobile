@@ -559,6 +559,8 @@ const NativeCallScreen = ({call, onMediaFailed}: {call: CurrentGomonCall; onMedi
                             <Pressable
                                 key={r.key}
                                 onPress={() => react(r.key)}
+                                accessibilityRole='button'
+                                accessibilityLabel={intl.locale.startsWith('ru') ? r.ru : r.en}
                                 testID={`gomon_call.react.${r.key}`}
                             >
                                 <Text style={styles.emoji}>{r.emoji}</Text>

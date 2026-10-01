@@ -95,11 +95,15 @@ export const Sheet = ({visible, title, onClose, tall, children, testID}: {visibl
             navigationBarTranslucent={true}
             supportedOrientations={['portrait', 'landscape']}
         >
+            {/* not accessible themselves: a Pressable would group the whole sheet into one element for VoiceOver */}
             <Pressable
                 style={styles.backdrop}
                 onPress={onClose}
+                accessible={false}
             >
                 <Pressable
+                    accessible={false}
+                    accessibilityViewIsModal={true}
                     style={[styles.sheet, tall && (keyboard ? {height: win.height - keyboard - insets.top - 48} : styles.tall), {marginBottom: keyboard, paddingBottom: keyboard ? 8 : insets.bottom + 8}]}
                     testID={testID}
                 >

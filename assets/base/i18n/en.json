@@ -633,7 +633,6 @@
   "gomon.media_failed_hint": "The meeting is still on, but this network does not let the call’s sound and video through. Try again, or switch networks (Wi-Fi ↔ mobile data) and try again.",
   "gomon.meet_link": "Meeting link",
   "gomon.mic_denied": "No microphone access: you joined muted and can only listen",
-  "gomon.mic_off_short": "microphone off",
   "gomon.minimize": "Minimize",
   "gomon.more": "More",
   "gomon.mute": "Mute",
