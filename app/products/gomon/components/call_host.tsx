@@ -3,14 +3,13 @@
 
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {defineMessages, IntlProvider, useIntl} from 'react-intl';
-import {Pressable, StyleSheet, View} from 'react-native';
+import {LogBox, Pressable, StyleSheet, View} from 'react-native';
 import WebViewBase, {type WebViewMessageEvent, type WebViewProps} from 'react-native-webview';
 
 import CompassIcon from '@components/compass_icon';
 import {useGomonCallSession} from '@gomon/call_session';
 import AudioOutputButton from '@gomon/components/audio_output_button';
 import GomonCallLayout, {callStyles} from '@gomon/components/call_layout';
-import GomonNativeCall from '@gomon/native/native_call';
 import {type CurrentGomonCall, setCurrentGomonCall, useCurrentGomonCall} from '@gomon/store';
 import {bridgeCommand, parseBridgeMessage, urlOrigin} from '@gomon/utils';
 import {getTranslations} from '@i18n';
@@ -148,6 +147,33 @@ const GomonWebViewCall = ({call}: {call: CurrentGomonCall}) => {
     );
 };
 
+// The LiveKit SDK and its globals load with the first native call (see native/globals.ts).
+let NativeCallComponent: React.ComponentType<{call: CurrentGomonCall}> | undefined;
+const NativeCall = (props: {call: CurrentGomonCall}) => {
+    NativeCallComponent ??= require('@gomon/native').default;
+    const C = NativeCallComponent!;
+    return <C {...props}/>;
+};
+
+// Debug builds only: open a native call by its join URL without a Mattermost login (tests drive
+// it over the JS debugger: Runtime.evaluate `__gomonDebugJoin(url)`).
+if (__DEV__) {
+    (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = (url: string, withCamera = true) => {
+        LogBox.ignoreAllLogs(true); // the dev overlay covers the call controls in screenshots
+        setCurrentGomonCall({
+            serverUrl: '',
+            channelId: '',
+            url,
+            withCamera,
+            native: true,
+            locale: 'ru',
+            title: 'Debug',
+            startedAt: Date.now(),
+            minimized: false,
+        });
+    };
+}
+
 /** Mounted once above navigation: the active gomon call, full screen or as a floating bar. */
 const GomonCallHost = () => {
     const call = useCurrentGomonCall();
@@ -162,7 +188,7 @@ const GomonCallHost = () => {
             messages={getTranslations(call.locale)}
         >
             {call.native ? (
-                <GomonNativeCall
+                <NativeCall
                     key={call.startedAt}
                     call={call}
                 />

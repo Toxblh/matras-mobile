@@ -29,6 +29,7 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
     const wantedRoute = useRef<AudioDeviceType | undefined>(undefined);
     const leaveRef = useRef(leave);
     leaveRef.current = leave;
+    const fgCamera = useRef(withCamera);
 
     const selectAudio = useCallback((device: AudioDeviceType) => {
         pinnedRoute.current = device;
@@ -42,6 +43,15 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
             CallsNative.setAudioRoute(wantedRoute.current);
         }
     }, []);
+
+    // The camera was switched on mid-call: the foreground service needs the camera type too,
+    // or the capture stops in the background.
+    const cameraStarted = useCallback(() => {
+        if (!fgCamera.current) {
+            fgCamera.current = true;
+            foregroundServiceStart(intl, true, serverUrl, channelId);
+        }
+    }, [intl, serverUrl, channelId]);
 
     // Call lifecycle = the calling component's, which the host keys by the store's call.
     useEffect(() => {
@@ -105,5 +115,5 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
         return () => clearInterval(t);
     }, [minimized]);
 
-    return {audio, selectAudio, reapplyRoute, now};
+    return {audio, selectAudio, reapplyRoute, cameraStarted, now};
 }

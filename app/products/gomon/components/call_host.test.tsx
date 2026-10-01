@@ -11,7 +11,7 @@ import {renderWithIntl} from '@test/intl-test-helper';
 import GomonCallHost from './call_host';
 
 jest.mock('react-native-webview', () => ({__esModule: true, default: 'WebView'}));
-jest.mock('@gomon/native/native_call', () => ({__esModule: true, default: 'GomonNativeCall'}));
+jest.mock('@gomon/native', () => ({__esModule: true, default: 'GomonNativeCall'}));
 jest.mock('@gomon/foreground_service', () => ({foregroundServiceStart: jest.fn(), foregroundServiceStop: jest.fn()}));
 
 const call: CurrentGomonCall = {

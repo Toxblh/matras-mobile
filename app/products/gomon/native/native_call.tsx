@@ -1,256 +1,458 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import Clipboard from '@react-native-clipboard/clipboard';
+import {ConnectionQuality} from 'livekit-client';
+import React, {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
-import {Alert, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Alert, Pressable, StyleSheet, Text, View, type AlertButton} from 'react-native';
 
-import CompassIcon from '@components/compass_icon';
+import CompassIcon, {type CompassIconName} from '@components/compass_icon';
+import {SNACK_BAR_TYPE} from '@constants/snack_bar';
 import {useGomonCallSession} from '@gomon/call_session';
 import AudioOutputButton from '@gomon/components/audio_output_button';
 import GomonCallLayout, {callStyles} from '@gomon/components/call_layout';
+import {hasCameraPermission} from '@gomon/permissions';
 import {type CurrentGomonCall, setCurrentGomonCall} from '@gomon/store';
-import {getFullErrorMessage} from '@utils/errors';
-import {generateId} from '@utils/general';
-import {logDebug, logWarning} from '@utils/log';
+import {logWarning} from '@utils/log';
+import {showSnackBar} from '@utils/snack_bar';
 
-import {joinCall, leaveConnection, parseJoinUrl, redeemHandoff} from './api';
-import {loadLiveKit} from './livekit';
+import {messages} from './messages';
+import {confOf, REACTIONS} from './shared/conf';
+import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
+import Stage, {QualityBars, buildTiles, type Layout} from './stage';
+import {useGomonNativeCall, type ExitReason} from './use_call';
 
-import type {Participant, Room} from 'livekit-client';
+import type {ApiError} from './api';
 
-const messages = defineMessages({
+const shared = defineMessages({
     people: {id: 'gomon.call_people', defaultMessage: '{count, plural, one {# participant} other {# participants}}'},
     failed: {id: 'gomon.call_failed', defaultMessage: 'Could not connect to the call'},
     connecting: {id: 'gomon.connecting', defaultMessage: 'Connecting…'},
+    leaveTitle: {id: 'gomon.leave_title', defaultMessage: 'Leave the call?'},
+    leave: {id: 'gomon.leave', defaultMessage: 'Leave'},
+    cancel: {id: 'gomon.cancel', defaultMessage: 'Cancel'},
 });
 
-// One device id per app run, like meeting-web's per-tab id.
-const DEVICE_ID = `matras-${generateId().slice(0, 8)}`;
+const LAYOUTS: Layout[] = ['auto', 'grid', 'speaker'];
+const LAYOUT_MSG = {auto: messages.layoutAuto, grid: messages.layoutGrid, speaker: messages.layoutSpeaker};
+const ENDED_MSG: Partial<Record<ExitReason, typeof messages.endedSESSIONENDED>> = {
+    SESSION_ENDED: messages.endedSESSIONENDED,
+    REMOVED: messages.endedREMOVED,
+    AUTH_REVOKED: messages.endedAUTHREVOKED,
+    DISCONNECTED: messages.endedDISCONNECTED,
+    MEDIA_FAILED: messages.endedMEDIAFAILED,
+};
 
 const styles = StyleSheet.create({
-    grid: {flex: 1, flexDirection: 'row', flexWrap: 'wrap', backgroundColor: '#000'},
-    tile: {padding: 2},
-    tileInner: {flex: 1, borderRadius: 8, overflow: 'hidden', backgroundColor: '#1b1d22', alignItems: 'center', justifyContent: 'center'},
-    video: {...StyleSheet.absoluteFillObject},
-    name: {position: 'absolute', left: 8, bottom: 6, color: '#fff', fontSize: 13, textShadowColor: '#000', textShadowRadius: 3},
-    initial: {color: '#fff', fontSize: 40, fontWeight: '600'},
+    body: {flex: 1},
+    banner: {marginHorizontal: 8, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: '#7a5a00'},
+    bannerText: {color: '#fff', fontSize: 13},
     status: {flex: 1, alignItems: 'center', justifyContent: 'center'},
     statusText: {color: 'rgba(255,255,255,0.72)', fontSize: 16},
+    waiting: {position: 'absolute', top: 8, alignSelf: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.55)'},
+    controls: {flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', paddingVertical: 10},
+    ctl: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)'},
+    ctlOff: {backgroundColor: '#d24b4e'},
+    ctlOn: {backgroundColor: '#c58c1c'},
+    badge: {position: 'absolute', top: 0, right: 0, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3, backgroundColor: '#d24b4e', alignItems: 'center', justifyContent: 'center'},
+    badgeText: {color: '#fff', fontSize: 10, fontWeight: '700'},
+    emojiRow: {flexDirection: 'row', justifyContent: 'space-evenly', paddingVertical: 16},
+    emoji: {fontSize: 34},
+    feed: {position: 'absolute', left: 8, bottom: 76, gap: 4},
+    feedItem: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.55)'},
+    feedEmoji: {fontSize: 18},
+    feedName: {color: '#fff', fontSize: 12},
 });
 
-const Tile = ({participant, width, height}: {participant: Participant; width: `${number}%`; height: `${number}%`}) => {
-    const {rn: {VideoTrack}, client: {Track}} = loadLiveKit();
-    const publication = participant.getTrackPublication(Track.Source.Camera);
-    const name = participant.name || participant.identity;
-    return (
-        <View style={[styles.tile, {width, height}]}>
-            <View style={styles.tileInner}>
-                {publication?.track && !publication.isMuted ? (
-                    <VideoTrack
-                        trackRef={{participant, publication, source: Track.Source.Camera}}
-                        style={styles.video}
-                        objectFit='cover'
-                        mirror={participant.isLocal}
-                    />
-                ) : (
-                    <Text style={styles.initial}>{name.slice(0, 1).toUpperCase()}</Text>
-                )}
-                <Text
-                    style={styles.name}
-                    numberOfLines={1}
-                >
-                    {name}
-                </Text>
+const toast = (customMessage: string) => showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage});
+
+type CtlProps = {icon: CompassIconName; label: string; onPress: () => void; on?: boolean; off?: boolean; badge?: string; testID: string};
+const Ctl = ({icon, label, onPress, on, off, badge, testID}: CtlProps) => (
+    <Pressable
+        onPress={onPress}
+        style={[styles.ctl, off && styles.ctlOff, on && styles.ctlOn]}
+        accessibilityLabel={label}
+        testID={testID}
+    >
+        <CompassIcon
+            name={icon}
+            size={24}
+            color='#fff'
+        />
+        {Boolean(badge) &&
+            <View style={styles.badge}>
+                <Text style={styles.badgeText}>{badge}</Text>
             </View>
-        </View>
-    );
-};
+        }
+    </Pressable>
+);
 
-// ponytail: plain 1–2 column grid of every participant's camera; speaker view, screen share
-// and paging come with the phase 1 call screen.
-const Grid = ({room}: {room: Room}) => {
-    const participants: Participant[] = [room.localParticipant, ...room.remoteParticipants.values()];
-    const cols = participants.length > 1 ? 2 : 1;
-    const rows = Math.ceil(participants.length / cols);
-    const width = `${100 / cols}%` as const;
-    const height = `${100 / rows}%` as const;
-    return (
-        <View style={styles.grid}>
-            {participants.map((p) => (
-                <Tile
-                    key={p.identity}
-                    participant={p}
-                    width={width}
-                    height={height}
-                />
-            ))}
-        </View>
-    );
-};
+type Sheets = 'people' | 'chat' | 'invite' | 'more' | null;
 
-/** gomon call through the LiveKit SDK: the same API sequence as meeting-web, native media. */
+/** gomon call through the LiveKit SDK: meeting-web's call screen, natively. */
 const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
-    const {url, withCamera, minimized} = call;
+    const {minimized} = call;
     const intl = useIntl();
-    const [room, setRoom] = useState<Room>();
-    const [, setTick] = useState(0);
+    const [layout, setLayout] = useState<Layout>('auto');
+    const [sheet, setSheet] = useState<Sheets>(null);
+    const [, tick] = useReducer((n: number) => n + 1, 0);
     const closed = useRef(false);
 
-    // Unmounting (after close) disconnects and reports the leave; see the effect below.
-    const close = useCallback(() => {
-        if (!closed.current) {
-            closed.current = true;
-            setCurrentGomonCall(undefined);
+    const close = useCallback((reason: ExitReason, message?: string) => {
+        if (closed.current) {
+            return;
         }
-    }, []);
-
-    const {audio, selectAudio, reapplyRoute, now} = useGomonCallSession(call, close);
-
-    useEffect(() => {
-        const {client: {Room: LiveKitRoom, RoomEvent}} = loadLiveKit();
-        const lkRoom = new LiveKitRoom({adaptiveStream: true, dynacast: true});
-        let cancelled = false;
-        let session: {origin: string; token: string; connectionId: string} | undefined;
-
-        const rerender = () => setTick((t) => t + 1);
-        for (const event of [
-            RoomEvent.ParticipantConnected, RoomEvent.ParticipantDisconnected,
-            RoomEvent.TrackSubscribed, RoomEvent.TrackUnsubscribed, RoomEvent.TrackMuted, RoomEvent.TrackUnmuted,
-            RoomEvent.LocalTrackPublished, RoomEvent.LocalTrackUnpublished, RoomEvent.ParticipantNameChanged,
-        ]) {
-            lkRoom.on(event, rerender);
+        closed.current = true;
+        setCurrentGomonCall(undefined);
+        const ended = ENDED_MSG[reason];
+        if (reason === 'JOIN_FAILED') {
+            Alert.alert(intl.formatMessage(shared.failed), message);
+        } else if (ended && (reason === 'DISCONNECTED' || reason === 'MEDIA_FAILED')) {
+            Alert.alert(intl.formatMessage(shared.failed), intl.formatMessage(ended));
+        } else if (ended) {
+            toast(intl.formatMessage(ended));
         }
+    }, [intl]);
 
-        // Server ended the call, we were removed, or the connection is lost for good.
-        lkRoom.on(RoomEvent.Disconnected, close);
-
-        const start = async () => {
-            const target = parseJoinUrl(url);
-            if (!target) {
-                throw new Error(`not a gomon join url: ${url}`);
-            }
-            const {token, call_id: callId} = await redeemHandoff(target.origin, target.code);
-            const joined = await joinCall(target.origin, token, callId || target.callId, DEVICE_ID);
-            session = {origin: target.origin, token, connectionId: joined.connection_id};
-            if (cancelled) {
-                return;
-            }
-            await lkRoom.connect(joined.livekit_url, joined.token);
-            if (cancelled) {
-                return;
-            }
-            setRoom(lkRoom);
-            await lkRoom.localParticipant.setMicrophoneEnabled(true);
-            if (withCamera) {
-                await lkRoom.localParticipant.setCameraEnabled(true);
-            }
-
+    // The platform session below needs the call's leave; the call needs the session's route.
+    const media = useRef({reapplyRoute: () => undefined as void, cameraStarted: () => undefined as void});
+    const nc = useGomonNativeCall({
+        joinUrl: call.url,
+        mic: true,
+        cam: call.withCamera,
+        onExit: close,
+        onMedia: (cam) => {
             // WebRTC may reset the route when it opens the mic.
-            reapplyRoute();
-            rerender();
-        };
-
-        start().catch((error) => {
-            if (cancelled) {
-                return;
+            media.current.reapplyRoute();
+            if (cam) {
+                media.current.cameraStarted();
             }
-            logWarning('gomon native call failed', getFullErrorMessage(error));
-            Alert.alert(intl.formatMessage(messages.failed), getFullErrorMessage(error));
-            close();
-        });
+        },
+    });
+    const {room, call: snapshot} = nc;
+    const conf = confOf(snapshot);
+    const others = room.remoteParticipants.size;
+    const moderator = snapshot?.my_role === 'host' || snapshot?.my_role === 'cohost';
 
-        return () => {
-            cancelled = true;
-            lkRoom.removeAllListeners();
-            lkRoom.disconnect();
-            if (session) {
-                leaveConnection(session.origin, session.token, session.connectionId).catch((e) => logDebug('gomon native: leave', e));
-            }
-        };
-
-    // Once per call; the host keys this component by the call.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const local = room?.localParticipant;
-    const micOn = Boolean(local?.isMicrophoneEnabled);
-    const camOn = Boolean(local?.isCameraEnabled);
-
-    const toggleMic = useCallback(async () => {
-        try {
-            await local?.setMicrophoneEnabled(!micOn);
-        } catch (e) {
-            logWarning('gomon native: mic', e);
+    // Hang up without asking (notification action, minimized bar): the web's rule, a moderator
+    // alone ends the call for everyone so it does not linger.
+    const hangUp = useCallback(() => {
+        if (moderator && others === 0) {
+            nc.endForAll().catch(() => nc.leave());
+        } else {
+            nc.leave();
         }
-        setTick((t) => t + 1);
-    }, [local, micOn]);
+    }, [moderator, others, nc]);
+
+    const {audio, selectAudio, reapplyRoute, cameraStarted, now} = useGomonCallSession(call, hangUp);
+    media.current = {reapplyRoute, cameraStarted};
+
+    const askLeave = useCallback(() => {
+        if (moderator && others === 0) {
+            hangUp();
+            return;
+        }
+        const buttons: AlertButton[] = [
+            {text: intl.formatMessage(shared.cancel), style: 'cancel'},
+            {text: intl.formatMessage(shared.leave), onPress: () => nc.leave()},
+        ];
+        if (moderator) {
+            buttons.push({
+                text: intl.formatMessage(messages.endForAll),
+                style: 'destructive',
+                onPress: () => nc.endForAll().catch((e: ApiError) => toast(e.message)),
+            });
+        }
+        Alert.alert(intl.formatMessage(shared.leaveTitle), undefined, buttons);
+    }, [moderator, others, hangUp, intl, nc]);
+
+    // The sheets belong to the full-screen call.
+    useEffect(() => {
+        if (minimized) {
+            setSheet(null);
+        }
+    }, [minimized]);
+
+    // Unread chat badge.
+    useEffect(() => nc.chat?.subscribe(tick), [nc.chat]);
+
+    // Server control messages that need the person.
+    const {notice, clearNotice, setMic} = nc;
+    useEffect(() => {
+        if (!notice) {
+            return;
+        }
+        clearNotice();
+        if (notice.kind === 'muted') {
+            toast(intl.formatMessage(messages.mutedYou, {name: notice.by}));
+        } else {
+            Alert.alert(intl.formatMessage(messages.unmuteAsk, {name: notice.by}), undefined, [
+                {text: intl.formatMessage(messages.notNow), style: 'cancel'},
+                {text: intl.formatMessage(messages.unmuteYes), onPress: () => setMic(true, 'remote')},
+            ]);
+        }
+    }, [notice, clearNotice, setMic, intl]);
 
     const toggleCam = useCallback(async () => {
-        try {
-            await local?.setCameraEnabled(!camOn);
-        } catch (e) {
-            logWarning('gomon native: camera', e);
+        if (!nc.camOn && !(await hasCameraPermission(intl))) {
+            return;
         }
-        setTick((t) => t + 1);
-    }, [local, camOn]);
+        nc.setCam(!nc.camOn);
+    }, [intl, nc]);
 
-    const buttons = (
+    const toggleHand = useCallback(async () => {
+        try {
+            await nc.api?.hand(nc.callId, !conf.my_hand.raised);
+            nc.refresh();
+        } catch (e) {
+            toast((e as ApiError)?.message || intl.formatMessage(messages.error));
+        }
+    }, [nc, conf.my_hand.raised, intl]);
+
+    const react = useCallback(async (key: string) => {
+        setSheet(null);
+        try {
+            await nc.api?.react(nc.callId, key, nc.connectionId);
+        } catch (e) {
+            logWarning('gomon native: reaction', e);
+            toast(intl.formatMessage(messages.reactFailed));
+        }
+    }, [nc, intl]);
+
+    const copyLink = useCallback(() => {
+        setSheet(null);
+        if (snapshot?.meet_url) {
+            Clipboard.setString(snapshot.meet_url);
+            toast(intl.formatMessage(messages.linkCopied));
+        }
+    }, [snapshot?.meet_url, intl]);
+
+    let chatBadge = '';
+    if (nc.chat?.mentioned) {
+        chatBadge = '@';
+    } else if (nc.chat?.unread) {
+        chatBadge = nc.chat.unread > 99 ? '99+' : String(nc.chat.unread);
+    }
+
+    const audioButton = audio && (
+        <AudioOutputButton
+            route={audio}
+            onSelect={selectAudio}
+            style={callStyles.button}
+        />
+    );
+    const buttons = minimized ? (
         <>
-            {local && !minimized &&
+            {nc.connected &&
                 <Pressable
-                    onPress={toggleCam}
+                    onPress={() => nc.setMic(!nc.micOn)}
                     style={callStyles.button}
-                    testID='gomon_call.camera'
-                >
-                    <CompassIcon
-                        name={camOn ? 'video-outline' : 'video-off-outline'}
-                        size={24}
-                        color='#fff'
-                    />
-                </Pressable>
-            }
-            {local &&
-                <Pressable
-                    onPress={toggleMic}
-                    style={callStyles.button}
+                    accessibilityLabel={intl.formatMessage(nc.micOn ? messages.mute : messages.unmute)}
                     testID='gomon_call.mic'
                 >
                     <CompassIcon
-                        name={micOn ? 'microphone' : 'microphone-off'}
+                        name={nc.micOn ? 'microphone' : 'microphone-off'}
                         size={24}
                         color='#fff'
                     />
                 </Pressable>
             }
-            {audio &&
-                <AudioOutputButton
-                    route={audio}
-                    onSelect={selectAudio}
-                    style={callStyles.button}
-                />
-            }
+            {audioButton}
+        </>
+    ) : (
+        <>
+            {nc.connected && <QualityBars quality={nc.quality}/>}
+            {audioButton}
         </>
     );
 
     let body = null;
-    if (!minimized) {
-        body = room ? <Grid room={room}/> : (
+    if (!minimized && !nc.connected) {
+        body = (
             <View style={styles.status}>
-                <Text style={styles.statusText}>{intl.formatMessage(messages.connecting)}</Text>
+                <Text style={styles.statusText}>{intl.formatMessage(shared.connecting)}</Text>
+            </View>
+        );
+    } else if (!minimized) {
+        const tiles = buildTiles([room.localParticipant, ...room.remoteParticipants.values()]);
+        let banner: string | undefined;
+        if (nc.reconnecting) {
+            banner = intl.formatMessage(messages.reconnecting);
+        } else if (nc.quality === ConnectionQuality.Poor) {
+            banner = intl.formatMessage(messages.poorNetwork);
+        }
+        body = (
+            <View style={styles.body}>
+                {banner &&
+                    <View
+                        style={styles.banner}
+                        testID='gomon_call.banner'
+                    >
+                        <Text style={styles.bannerText}>{banner}</Text>
+                    </View>
+                }
+                <View style={styles.body}>
+                    <Stage
+                        tiles={tiles}
+                        conf={conf}
+                        layout={layout}
+                        lastSpeaker={nc.lastSpeaker}
+                        mirror={nc.facing === 'user'}
+                        flying={nc.flying}
+                    />
+                    {others === 0 && nc.conn === 'CONNECTED' &&
+                        <View
+                            style={styles.waiting}
+                            testID='gomon_call.waiting'
+                        >
+                            <Text style={styles.bannerText}>{intl.formatMessage(messages.waitingOthers)}</Text>
+                        </View>
+                    }
+                </View>
+                <View style={styles.controls}>
+                    <Ctl
+                        icon={nc.micOn ? 'microphone' : 'microphone-off'}
+                        label={intl.formatMessage(nc.micOn ? messages.mute : messages.unmute)}
+                        onPress={() => nc.setMic(!nc.micOn)}
+                        off={!nc.micOn}
+                        testID='gomon_call.controls.mic'
+                    />
+                    <Ctl
+                        icon={nc.camOn ? 'video-outline' : 'video-off-outline'}
+                        label={intl.formatMessage(nc.camOn ? messages.cameraOff : messages.cameraOn)}
+                        onPress={toggleCam}
+                        off={!nc.camOn}
+                        testID='gomon_call.controls.camera'
+                    />
+                    {nc.camOn &&
+                        <Ctl
+                            icon='sync'
+                            label={intl.formatMessage(messages.flipCamera)}
+                            onPress={nc.flipCamera}
+                            testID='gomon_call.controls.flip'
+                        />
+                    }
+                    {(conf.can.raise_hand || conf.my_hand.raised) &&
+                        <Ctl
+                            icon='hand-right-outline'
+                            label={intl.formatMessage(conf.my_hand.raised ? messages.lowerHand : messages.raiseHand)}
+                            onPress={toggleHand}
+                            on={conf.my_hand.raised}
+                            badge={conf.my_hand.raised && conf.my_hand.position ? String(conf.my_hand.position) : undefined}
+                            testID='gomon_call.controls.hand'
+                        />
+                    }
+                    <Ctl
+                        icon='message-text-outline'
+                        label={intl.formatMessage(messages.chat)}
+                        onPress={() => setSheet('chat')}
+                        badge={chatBadge}
+                        testID='gomon_call.controls.chat'
+                    />
+                    <Ctl
+                        icon='dots-horizontal'
+                        label={intl.formatMessage(messages.more)}
+                        onPress={() => setSheet('more')}
+                        testID='gomon_call.controls.more'
+                    />
+                </View>
+                {nc.flying.length > 0 &&
+                    <View
+                        style={styles.feed}
+                        pointerEvents='none'
+                        testID='gomon_call.reaction_feed'
+                    >
+                        {nc.flying.map((f) => (
+                            <View
+                                key={f.id}
+                                style={styles.feedItem}
+                            >
+                                <Text style={styles.feedEmoji}>{f.emoji}</Text>
+                                <Text style={styles.feedName}>{f.name}</Text>
+                            </View>
+                        ))}
+                    </View>
+                }
             </View>
         );
     }
 
+    const people = snapshot ? snapshot.connections.filter((c) => c.state === 'CONNECTED').length : others + 1;
     return (
         <GomonCallLayout
             call={call}
-            people={room ? intl.formatMessage(messages.people, {count: room.remoteParticipants.size + 1}) : ''}
+            people={nc.connected ? intl.formatMessage(shared.people, {count: people}) : ''}
             now={now}
             buttons={buttons}
-            onLeave={close}
+            onLeave={askLeave}
+            confirmLeave={false}
         >
             {body}
+            <Sheet
+                visible={sheet === 'more'}
+                onClose={() => setSheet(null)}
+                testID='gomon_call.more'
+            >
+                {conf.can.react &&
+                    <View style={styles.emojiRow}>
+                        {REACTIONS.map((r) => (
+                            <Pressable
+                                key={r.key}
+                                onPress={() => react(r.key)}
+                                testID={`gomon_call.react.${r.key}`}
+                            >
+                                <Text style={styles.emoji}>{r.emoji}</Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                }
+                <SheetItem
+                    icon='account-multiple-outline'
+                    text={`${intl.formatMessage(messages.participants)} · ${people}`}
+                    onPress={() => setSheet('people')}
+                    testID='gomon_call.more.people'
+                />
+                <SheetItem
+                    icon='account-plus-outline'
+                    text={intl.formatMessage(messages.invite)}
+                    onPress={() => setSheet('invite')}
+                    testID='gomon_call.more.invite'
+                />
+                {Boolean(snapshot?.meet_url) &&
+                    <SheetItem
+                        icon='link-variant'
+                        text={intl.formatMessage(messages.copyLink)}
+                        onPress={copyLink}
+                        testID='gomon_call.more.copy_link'
+                    />
+                }
+                <SheetItem
+                    icon='view-grid-plus-outline'
+                    text={intl.formatMessage(LAYOUT_MSG[layout])}
+                    onPress={() => setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length])}
+                    testID='gomon_call.more.layout'
+                />
+            </Sheet>
+            <PeopleSheet
+                visible={sheet === 'people'}
+                onClose={() => setSheet(null)}
+                call={snapshot}
+                room={room}
+                connectionId={nc.connectionId}
+            />
+            <ChatSheet
+                visible={sheet === 'chat'}
+                onClose={() => setSheet(null)}
+                store={nc.chat}
+            />
+            <InviteSheet
+                visible={sheet === 'invite'}
+                onClose={() => setSheet(null)}
+                api={nc.api}
+                call={snapshot}
+                toast={toast}
+            />
         </GomonCallLayout>
     );
 };

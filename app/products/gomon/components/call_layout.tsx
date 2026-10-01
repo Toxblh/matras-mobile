@@ -52,12 +52,15 @@ type Props = {
     buttons: ReactNode;
     onLeave: () => void;
 
+    /** Ask "Leave the call?" before onLeave (full screen); the native call asks itself. */
+    confirmLeave?: boolean;
+
     /** The media; stays mounted in both presentations. */
     children: ReactNode;
 };
 
 /** A gomon call full screen (bar on top of the media) or minimized to a floating bar. */
-const GomonCallLayout = ({call, people, now, buttons, onLeave, children}: Props) => {
+const GomonCallLayout = ({call, people, now, buttons, onLeave, confirmLeave = true, children}: Props) => {
     const {minimized, title, startedAt} = call;
     const intl = useIntl();
     const insets = useSafeAreaInsets();
@@ -112,7 +115,7 @@ const GomonCallLayout = ({call, people, now, buttons, onLeave, children}: Props)
                     </Text>
                     {buttons}
                     <Pressable
-                        onPress={askLeave}
+                        onPress={confirmLeave ? askLeave : onLeave}
                         style={callStyles.hangUp}
                         accessibilityLabel={intl.formatMessage(messages.hangUp)}
                         testID='gomon_call.leave'
