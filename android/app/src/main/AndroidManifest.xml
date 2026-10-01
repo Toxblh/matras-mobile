@@ -97,13 +97,13 @@
           <action android:name="android.intent.action.VIEW" />
           <category android:name="android.intent.category.DEFAULT" />
           <category android:name="android.intent.category.BROWSABLE" />
-          <data android:scheme="mattermost" />
+          <data android:scheme="${mattermostScheme}" />
         </intent-filter>
         <intent-filter>
           <action android:name="android.intent.action.VIEW" />
           <category android:name="android.intent.category.DEFAULT" />
           <category android:name="android.intent.category.BROWSABLE" />
-          <data android:scheme="mmauthbeta" />
+          <data android:scheme="${mmauthScheme}" />
         </intent-filter>
       </activity>
       <service android:name=".NotificationDismissService"

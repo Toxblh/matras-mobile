@@ -121,6 +121,8 @@ android {
 
     defaultConfig {
         applicationId "com.mattermost.rnbeta"
+        // matras: the dev app (matrasDevSuffix) swaps these for matrasdev so it does not claim the daily app's links
+        manifestPlaceholders += [mattermostScheme: "mattermost", mmauthScheme: "mmauthbeta"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 814
@@ -306,6 +308,8 @@ if (matrasDev) {
     androidComponents {
         onVariants(selector().withBuildType('debug')) { variant ->
             variant.applicationId.set('ru.toxblh.matras.dev')
+            variant.manifestPlaceholders.put('mattermostScheme', 'matrasdev')
+            variant.manifestPlaceholders.put('mmauthScheme', 'matrasdev')
         }
     }
     android.sourceSets.debug.res.srcDirs += 'src/matrasDev/res'
