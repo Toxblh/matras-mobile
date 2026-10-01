@@ -71,6 +71,12 @@ export type CurrentGomonCall = {
 
     /** matras: media through the LiveKit SDK instead of the WebView (prototype, `url` = join_url). */
     native?: boolean;
+
+    /**
+     * The gomon session the one-time code of `url` was redeemed for: a re-created call component
+     * (retry after a network failure, a JS reload) joins with it instead of the spent code.
+     */
+    session?: {token: string; callId: string};
 };
 const currentCall = new BehaviorSubject<CurrentGomonCall | undefined>(undefined);
 export const getCurrentGomonCall = () => currentCall.value;
@@ -79,6 +85,12 @@ export const setGomonMinimized = (minimized: boolean) => {
     const call = currentCall.value;
     if (call && call.minimized !== minimized) {
         currentCall.next({...call, minimized});
+    }
+};
+export const setGomonCallSession = (url: string, session: {token: string; callId: string}) => {
+    const call = currentCall.value;
+    if (call?.url === url) {
+        currentCall.next({...call, session});
     }
 };
 export const useCurrentGomonCall = () => {

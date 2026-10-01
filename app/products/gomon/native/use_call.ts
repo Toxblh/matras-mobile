@@ -13,7 +13,7 @@ import {generateId} from '@utils/general';
 import {logDebug, logWarning} from '@utils/log';
 
 import {GomonApi, isLiveCall, parseJoinUrl, type ApiError, type Call, type JoinResult} from './api';
-import {CallTelemetry, ChatStore, clean, emojiOf, initial, parseServerData, reduce, type ConnState, type MuteSource} from './call_core';
+import {CallTelemetry, ChatStore, clean, emojiOf, initial, parseServerData, problemReport, reduce, reportAddendum, type ConnState, type MuteSource} from './call_core';
 
 /** Why the call screen closed (meeting-web's ExitReason). */
 export type ExitReason = 'LEFT' | 'SESSION_ENDED' | 'REMOVED' | 'AUTH_REVOKED' | 'DISCONNECTED' | 'MEDIA_FAILED' | 'JOIN_FAILED';
@@ -36,10 +36,18 @@ let flySeq = 0;
 
 type Rejoin = {until: number; timer?: ReturnType<typeof setTimeout>; wake?: () => void};
 
+type Session = {token: string; callId: string};
+
 type Options = {
     joinUrl: string;
     mic: boolean;
     cam: boolean;
+
+    /** The session the join URL's one-time code was already redeemed for (a re-created call). */
+    session?: Session;
+
+    /** The code was redeemed: keep the session for a re-created call. */
+    onSession?: (s: Session) => void;
     onExit: (reason: ExitReason, message?: string) => void;
 
     /** WebRTC opened the mic or camera: re-apply the audio route, upgrade the foreground service. */
@@ -52,7 +60,7 @@ type Options = {
  * server's control messages (reactions, mutes), telemetry, and the chat store. A lost network is
  * survived first by LiveKit's own reconnect, then by a fresh join while the call is live.
  */
-export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options) {
+export function useGomonNativeCall({joinUrl, mic, cam, session, onSession, onExit, onMedia}: Options) {
     const [conn, dispatch] = useReducer(reduce, initial({mic, cam}));
     const [call, setCall] = useState<Call | null>(null);
     const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -63,6 +71,11 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
     const [flying, setFlying] = useState<Flying[]>([]);
     const [notice, setNotice] = useState<ServerNotice | null>(null);
     const [chat, setChat] = useState<ChatStore | null>(null);
+
+    // companion mode (meeting-web's): in the room from a laptop's or a phone's second screen —
+    // no microphone or camera, the call's sound off; chat, hands and reactions stay
+    const [companion, setCompanionState] = useState(false);
+    const companionRef = useRef(false);
 
     const [room] = useState(() => new Room({adaptiveStream: true, dynacast: true}));
     if (__DEV__) {
@@ -79,8 +92,8 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
     const joinedAt = useRef(0);
     const refreshTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const chatRef = useRef<ChatStore | null>(null);
-    const props = useRef({onExit, onMedia});
-    props.current = {onExit, onMedia};
+    const props = useRef({onExit, onMedia, onSession});
+    props.current = {onExit, onMedia, onSession};
 
     const report = useCallback((kind: Parameters<CallTelemetry['push']>[0], data: Record<string, unknown>) => {
         telemetry.current?.push(kind, data, kind === 'connection_state' || kind === 'error');
@@ -204,7 +217,10 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
             }
         }
         const tm = telemetry.current;
-        if (!tm?.transportUp && Date.now() - joinedAt.current < EARLY_DROP_MS) {
+
+        // never connected, or dropped right after the join without the media ever flowing: the
+        // network blocks calls (web: MEDIA_FAILED), not a call to rejoin
+        if (!joinedAt.current || (!tm?.transportUp && Date.now() - joinedAt.current < EARLY_DROP_MS)) {
             report('error', {where: 'transport', reason, ms_since_join: Date.now() - joinedAt.current, ...tm?.transportInfo()});
             exit('MEDIA_FAILED');
             return;
@@ -218,7 +234,12 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
 
         room.
             on(RoomEvent.ConnectionStateChanged, setLkState).
-            on(RoomEvent.ParticipantConnected, rerender).
+            on(RoomEvent.ParticipantConnected, (p) => {
+                if (companionRef.current) {
+                    p.setVolume(0);
+                }
+                rerender();
+            }).
             on(RoomEvent.ParticipantDisconnected, rerender).
             on(RoomEvent.TrackSubscribed, rerender).
             on(RoomEvent.TrackUnsubscribed, rerender).
@@ -291,10 +312,17 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
             if (!target) {
                 throw new Error(`not a gomon join url: ${joinUrl}`);
             }
-            const a = new GomonApi(target.origin);
+
+            // A spent one-time code cannot be redeemed twice: a re-created call joins with the session.
+            const a = new GomonApi(target.origin, session?.token);
             api.current = a;
-            const {call_id: id} = await a.redeem(target.code);
-            callId.current = id || target.callId;
+            if (session) {
+                callId.current = session.callId;
+            } else {
+                const {call_id: id, token} = await a.redeem(target.code);
+                callId.current = id || target.callId;
+                props.current.onSession?.({token, callId: callId.current});
+            }
             if (cancelled) {
                 return;
             }
@@ -329,7 +357,31 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
             }));
             tm.start(room);
 
-            await connect();
+            const j = await a.join(callId.current, DEVICE_ID);
+            join.current = j;
+            tm.connectionId = j.connection_id;
+            if (cancelled) {
+                return;
+            }
+            try {
+                await room.connect(j.livekit_url, j.token);
+            } catch (e) {
+                if (cancelled) {
+                    return;
+                }
+
+                // the server gave us a seat but the media server is out of reach: the network
+                // (web: transportLost → MEDIA_FAILED); a refused token is not a network matter
+                const why = (e as {reason?: number})?.reason === 0 ? 'not_allowed' : 'signal_failed';
+                report('error', {where: 'connect', reason: why, message: String((e as Error)?.message ?? e).slice(0, 300)});
+                if (why === 'not_allowed') {
+                    exit('DISCONNECTED');
+                } else {
+                    transportLost(tm.transportInfo().signal ? 'pc_timeout' : 'signal_failed');
+                }
+                return;
+            }
+            joinedAt.current = Date.now();
             if (cancelled) {
                 return;
             }
@@ -405,8 +457,9 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
     // ---------------------------------------------------------------- actions
     const local = room.localParticipant;
     const setMic = useCallback(async (next: boolean, from: MuteSource = 'self') => {
-        // Joined listen-only (permission denied): ask again on unmute, from whatever source.
-        if (next && !(await hasMicrophonePermission())) {
+        // Companion mode has no microphone (web: the same). Joined listen-only (permission
+        // denied): ask again on unmute, from whatever source.
+        if (next && (companionRef.current || !(await hasMicrophonePermission()))) {
             return;
         }
         telemetry.current?.markSource(from);
@@ -422,6 +475,9 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
     }, [room, report]);
 
     const setCam = useCallback(async (next: boolean) => {
+        if (next && companionRef.current) {
+            return;
+        }
         telemetry.current?.markSource('self');
         dispatch({type: 'SetIntent', cam: next});
         try {
@@ -445,6 +501,58 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
             logWarning('gomon native: flip camera', e);
         }
     }, [room, facing, report]);
+
+    // Companion on: microphone and camera off, every remote voice silent (also people who join
+    // later); off: the sound comes back, the microphone stays off until the person turns it on.
+    const setCompanion = useCallback(async (on: boolean) => {
+        companionRef.current = on;
+        setCompanionState(on);
+        report('page_event', {event: on ? 'companion_on' : 'companion_off'});
+        for (const p of room.remoteParticipants.values()) {
+            p.setVolume(on ? 0 : 1);
+        }
+        if (on) {
+            telemetry.current?.markSource('companion');
+            dispatch({type: 'SetIntent', mic: false, cam: false});
+            await room.localParticipant.setMicrophoneEnabled(false).catch(() => undefined);
+            await room.localParticipant.setCameraEnabled(false).catch(() => undefined);
+            props.current.onMedia(false, false);
+        }
+        rerender();
+    }, [room, report]);
+
+    // "Report a problem": the report goes out at once (the moment it broke); symptoms and a comment
+    // follow as an addendum to its id. Resolves the report id, '' when it could not be sent.
+    const sendReport = useCallback(async () => {
+        const a = api.current;
+        if (!a) {
+            return '';
+        }
+        const body = await problemReport({
+            callId: callId.current,
+            connectionId: join.current?.connection_id ?? '',
+            telemetry: telemetry.current,
+            room,
+            context: {
+                quality: String(room.localParticipant.connectionQuality),
+                state: connRef.current.state,
+                ua: `Matras ${Platform.OS} ${Platform.Version}`,
+                visibility: AppState.currentState === 'active' ? 'visible' : 'hidden',
+                embed: 'none',
+                companion: companionRef.current,
+            },
+        });
+        const r = await a.diagnostics(body).catch(() => null);
+        return r?.report_id ?? '';
+    }, [room]);
+
+    const sendReportComment = useCallback(async (reportId: string, symptoms: string[], comment: string) => {
+        const body = reportAddendum({callId: callId.current, connectionId: join.current?.connection_id ?? '', reportId, symptoms, comment});
+        if (!body || !api.current) {
+            return false;
+        }
+        return Boolean(await api.current.diagnostics(body).catch(() => null));
+    }, []);
 
     const leave = useCallback(async () => {
         const j = join.current;
@@ -490,6 +598,10 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
         camOn: local.isCameraEnabled,
         setMic,
         setCam,
+        companion,
+        setCompanion,
+        sendReport,
+        sendReportComment,
         flipCamera,
         leave,
         endForAll,

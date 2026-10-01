@@ -35,9 +35,11 @@ describe('GomonApi', () => {
         expect(JSON.parse(init.body)).toEqual({idempotency_key: expect.any(String), device_id: 'dev'});
     });
 
-    it('throws the server code and message on errors', async () => {
+    it('throws the server code, a message for people (Russian by code) and the raw one', async () => {
         fetchMock.mockResolvedValue({ok: false, status: 409, json: () => Promise.resolve({error: {code: 'invalid_transition', message: 'call ended'}})});
-        await expect(new GomonApi('https://g', 't').join('c', 'dev')).rejects.toMatchObject({status: 409, code: 'invalid_transition', message: 'call ended'});
+        await expect(new GomonApi('https://g', 't').join('c', 'dev')).rejects.toMatchObject({status: 409, code: 'invalid_transition', message: 'Сейчас это действие недоступно.', raw: 'call ended'});
+        fetchMock.mockResolvedValue({ok: false, status: 403, json: () => Promise.resolve({error: {code: 'forbidden', message: 'Только ведущий'}})});
+        await expect(new GomonApi('https://g', 't').lock('c', true)).rejects.toMatchObject({message: 'Только ведущий'});
     });
 
     it('a network failure is status 0', async () => {
