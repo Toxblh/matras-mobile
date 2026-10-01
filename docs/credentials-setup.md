@@ -44,12 +44,13 @@
 ## Куда положить
 
 На сервер Mattermost (прод-хост из mattermost-infra), в каталог секретов по правилам `mattermost-infra/SECRETS.md`,
-с правами 600 (точные имена файлов — в README push-прокси в mattermost-infra):
+с правами 600 (рядом с остальными секретами mattermost-infra; включение — `PUSH_PROXY_ENABLED=true`, см. README):
 
 ```
-push-proxy/fcm-service-account.json   # JSON сервисного аккаунта Firebase
-push-proxy/apns-authkey.p8            # AuthKey_XXXXXXXXXX.p8
-push-proxy/apns.env                   # APNS_KEY_ID=…  APNS_TEAM_ID=…  APNS_TOPIC=ru.toxblh.matras
+secrets/push-proxy/firebase-matras.json   # JSON сервисного аккаунта Firebase
+secrets/push-proxy/apns-authkey.p8        # AuthKey_XXXXXXXXXX.p8
+secrets/push-proxy/apns-key-id            # одна строка: Key ID
+secrets/push-proxy/apns-team-id           # одна строка: Team ID
 ```
 
 `google-services.json` — в секрет Forgejo Actions репозитория matras-mobile `GOOGLE_SERVICES_JSON`
