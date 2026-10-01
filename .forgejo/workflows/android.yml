@@ -86,6 +86,9 @@ jobs:
       - name: tsc + lint
         run: npm run check
 
+      - name: общий код звонка (call_core) совпадает с записанной версией comms
+        run: scripts/sync-call-core.sh --check
+
       - name: keystore (если задан секрет)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}

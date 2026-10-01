@@ -11,12 +11,11 @@ import {useKeyboardHeight} from '@hooks/device';
 import {logDebug} from '@utils/log';
 import {tryOpenURL} from '@utils/url';
 
+import {confOf, type ChatMessage, type ChatStore} from './call_core';
 import {messages} from './messages';
-import {confOf} from './shared/conf';
 import {Avatar} from './stage';
 
 import type {ApiError, Call, GomonApi, UserRef} from './api';
-import type {ChatMessage, ChatStore} from './shared/chat';
 import type {Room} from 'livekit-client';
 
 const BG = '#1f2228';

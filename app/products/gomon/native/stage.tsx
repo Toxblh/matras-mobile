@@ -10,9 +10,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import CompassIcon from '@components/compass_icon';
 
+import {aspectOf, fitRows, handOf, tileKey, type Conf} from './call_core';
 import {messages} from './messages';
-import {handOf, tileKey, type Conf} from './shared/conf';
-import {aspectOf, fitRows} from './shared/fit';
 
 import type {Flying} from './use_call';
 

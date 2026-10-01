@@ -4,7 +4,7 @@
 import {urlOrigin} from '@gomon/utils';
 import {generateId} from '@utils/general';
 
-import type {Conf} from './shared/conf';
+import type {Conf} from './call_core';
 
 // The gomon media API as apps/meeting-web uses it (comms repo, src/api.ts + main.tsx).
 // The API is served from the same origin as the plugin's join_url.

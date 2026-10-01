@@ -4,7 +4,7 @@
 /* eslint-disable max-nested-callbacks -- the room's handlers live inside the call's effect */
 
 import NetInfo from '@react-native-community/netinfo';
-import {ConnectionQuality, ConnectionState, DisconnectReason, Room, RoomEvent, Track, type LocalVideoTrack, type Participant} from 'livekit-client';
+import {ConnectionQuality, ConnectionState, DisconnectReason, Room, RoomEvent, Track, version as sdkVersion, type LocalVideoTrack, type Participant} from 'livekit-client';
 import {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {AppState, Dimensions, PixelRatio, Platform} from 'react-native';
 
@@ -13,10 +13,7 @@ import {generateId} from '@utils/general';
 import {logDebug, logWarning} from '@utils/log';
 
 import {GomonApi, isLiveCall, parseJoinUrl, type ApiError, type Call, type JoinResult} from './api';
-import {ChatStore} from './shared/chat';
-import {emojiOf, parseServerData} from './shared/conf';
-import {initial, reduce, type ConnState} from './shared/connection';
-import {CallTelemetry, clean, type MuteSource} from './shared/telemetry';
+import {CallTelemetry, ChatStore, clean, emojiOf, initial, parseServerData, reduce, type ConnState, type MuteSource} from './call_core';
 
 /** Why the call screen closed (meeting-web's ExitReason). */
 export type ExitReason = 'LEFT' | 'SESSION_ENDED' | 'REMOVED' | 'AUTH_REVOKED' | 'DISCONNECTED' | 'MEDIA_FAILED' | 'JOIN_FAILED';
@@ -303,14 +300,18 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
             }
             dispatch({type: 'JoinRequested'});
 
-            const tm = new CallTelemetry(async (body) => {
-                try {
-                    await a.diagnostics(body);
-                    return {ok: true, status: 202};
-                } catch (e) {
-                    return {ok: false, status: (e as ApiError)?.status ?? 0};
-                }
-            }, callId.current, '', Platform.OS === 'ios' ? 'ios' : 'android');
+            const tm = new CallTelemetry(callId.current, '', {
+                send: async (body) => {
+                    try {
+                        await a.diagnostics(body);
+                        return {ok: true, status: 202};
+                    } catch (e) {
+                        return {ok: false, status: (e as ApiError)?.status ?? 0};
+                    }
+                },
+                platform: Platform.OS === 'ios' ? 'ios' : 'android',
+                sdkVersion,
+            });
             telemetry.current = tm;
             const {width} = Dimensions.get('window');
             tm.push('app_context', clean({

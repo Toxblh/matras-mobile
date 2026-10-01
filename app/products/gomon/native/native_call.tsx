@@ -20,9 +20,9 @@ import {showSnackBar} from '@utils/snack_bar';
 
 import {pickPipTile} from './android_pip';
 import {androidMessages, useAndroidCallPlatform} from './android_platform';
+import {confOf, REACTIONS} from './call_core';
 import {useCallKitSession} from './callkit_session';
 import {messages} from './messages';
-import {confOf, REACTIONS} from './shared/conf';
 import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
 import Stage, {QualityBars, buildTiles, type Layout} from './stage';
 import {useGomonNativeCall, type ExitReason} from './use_call';

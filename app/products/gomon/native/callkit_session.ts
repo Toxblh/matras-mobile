@@ -9,7 +9,7 @@ import {Platform} from 'react-native';
 import {setCurrentCallKitCall, takeCallKitAnswered} from '@gomon/callkit';
 import {logWarning} from '@utils/log';
 
-import type {MuteSource} from './shared/telemetry';
+import type {MuteSource} from './call_core';
 import type {CurrentGomonCall} from '@gomon/store';
 
 type Options = {
