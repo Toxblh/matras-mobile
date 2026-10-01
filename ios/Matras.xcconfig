@@ -5,3 +5,9 @@
 // (docs/credentials-setup.md); until then the app keeps Mattermost's beta id.
 MATRAS_BUNDLE_ID = com.mattermost.rnbeta
 MATRAS_APP_GROUP = group.$(MATRAS_BUNDLE_ID)
+
+// The Apple Developer Team that signs the app and its extensions (every target's
+// DEVELOPMENT_TEAM). Empty in the repository: simulator builds need none. For a device build put
+// `MATRAS_TEAM_ID = <your team id>` into ios/Matras.local.xcconfig (not committed).
+MATRAS_TEAM_ID =
+#include? "Matras.local.xcconfig"
