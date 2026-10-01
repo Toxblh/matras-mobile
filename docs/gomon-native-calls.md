@@ -217,6 +217,64 @@ SDK подгружается `require()` при первом нативном з
 
 Core-Telecom (эндпоинты, фокус) вместо ручного роутинга; PiP с auto-enter и действиями mute/hang-up, пауза видео в фоне; MediaProjection для демонстрации с телефона; Live Updates; predictive back; прогон на Pixel/Samsung/Xiaomi с входом в Mattermost (входящий из пуша при выключенном экране, ответ из CallStyle).
 
+## Итоги фазы 2 (2026-10-01, ветка `gomon-native`, Android)
+
+Звонок gomon на Android зарегистрирован в системе через Jetpack Core-Telecom; PiP, демонстрация экрана с телефона, действия в уведомлении и PiP. iOS-файлы и общий TurboModule-спек `calls-native` не тронуты: всё Android-новое — в `libraries/@mattermost/calls-native/android`, `android/` и `app/products/gomon/native/android_*`.
+
+### Что сделано
+
+- **Core-Telecom** `androidx.core:core-telecom:1.1.0-beta01` (`MMCallsTelecom.kt`). `registerAppWithTelecom(BASELINE | SUPPORTS_VIDEO_CALLING)`, `addCallWithExtensions` (видео, `SUPPORTS_SET_INACTIVE`) с расширением local call silence. Исходящий/свой звонок регистрируется при старте сессии звонка (`call_session.ts` → `startTelecomCall`, общий путь для LiveKit и WebView), входящий — прямо из пуша рядом с CallStyle-уведомлением (`MMCallsIncomingCall.show`). JS-старт для того же канала **отвечает** на звонящий вызов (`answer(video)`), иначе добавляет исходящий и `setActive`. «Отклонить» → `REJECTED`, 30 с без ответа → `MISSED`, завершение → `LOCAL`.
+- **Маршруты**: при Telecom-звонке `calls-native` больше не трогает `MODE_IN_COMMUNICATION`/фокус/`setCommunicationDevice` — `setAudioRoute` → `requestEndpointChange`, список и текущий маршрут — из `availableEndpoints`/`currentCallEndpoint` в прежнем формате `AudioRoute`, поэтому JS-пикер не менялся. Ручной роутинг остаётся фолбэком: API < 28, нет `android.software.telecom`, регистрация не удалась (`startCall` → `false`). Датчик приближения по-прежнему держится на маршруте «Телефон» (теперь — эндпоинт Telecom).
+- **Mute в обе стороны**: приложение → система (`updateIsLocallySilenced`, снятие системного mute при включении микрофона), система → приложение (`isMuted` без первого значения, local silence, `onSetInactive` = удержание → микрофон выкл). Ответ гарнитурой/машиной: Telecom `onAnswer` → событие `GomonTelecomAnswer` → `acceptGomonFromPush` (JS жив) или answer-PendingIntent с BAL-разрешением (JS нет). Завершение системой → `GOMON_LEAVE`.
+- **FGS**: `MMCallsForegroundService` = `phoneCall|microphone|camera` (phoneCall — только при активном Telecom-звонке; сервис перезапускается с ним после регистрации). Разрешения `MANAGE_OWN_CALLS`, `FOREGROUND_SERVICE_PHONE_CALL`, `FOREGROUND_SERVICE_MEDIA_PROJECTION`, `POST_PROMOTED_NOTIFICATIONS`.
+- **Уведомление звонка**: `CallStyle.forOngoingCall` + «Выключить/Включить микрофон» и «Остановить показ» (пока идёт демонстрация); `android.requestPromotedOngoing=true` (Live Updates). Состояние передаёт `MMCallsPlatform.setCallState(muted, sharing)`.
+- **PiP** (`MMCallsPip.kt`, `MainActivity`): `supportsPictureInPicture`; пока полноэкранный звонок показывает видео — `setAutoEnterEnabled(true)`, `setSeamlessResizeEnabled(true)`, соотношение по видео плитки (1:2.39…2.39:1), RemoteAction «микрофон» и «завершить», `FLAG_KEEP_SCREEN_ON`; до API 31 — `onUserLeaveHint`. В PiP рисуется одна плитка (`pickPipTile`: демонстрация → говорящий → последний говорящий → любое видео → своя камера). Закрытие окна PiP → звонок сворачивается в плавающую панель. В PiP активити на паузе, а приостановленный React-хост не монтирует Fabric-изменения (окно замирало на старом кадре, «Завершить» не размонтировало звонок) — `MainActivity` держит хост resumed, пока активити в PiP.
+- **Пауза видео в фоне**: удалённое видео декодируется только там, где смонтировано (`videoViewOf`): фон без PiP — ни одной `VideoTrack`, adaptive stream ставит треки на паузу; возврат — монтируются снова.
+- **Демонстрация экрана**: «Ещё» → «Показать экран» (`setScreenShareEnabled`; MediaProjection с согласием на сессию, FGS `mediaProjection` из `@livekit/react-native-webrtc`), баннер «Вы показываете экран / Остановить показ», свой экран на сцене не показывается. LiveKit только останавливает трек — трек дополнительно `release()`, иначе сервис mediaProjection библиотеки оставался висеть. Звук демонстрации (AudioPlaybackCapture) не делали.
+- **Назад** (predictive back, target 36): прежний `BackHandler` → свернуть, работает.
+- Тесты: `android_pip.test.ts` (выбор PiP-плитки, режим отрисовки видео).
+
+### Как проверялось
+
+Эмулятор `p1` (API 36, Android 16 `BE2A.250530`, arm64) ⇄ headless Chromium. Стенд gomon.toxblh.ru в этот раз не использовался (секрет плагина для `p1-web-peer.mjs` агенту недоступен): вместо него локальный `livekit-server --dev` 1.9.12 и заглушка media-API (`redeem`/`join`/снимок звонка) + страница с `livekit-client` (поддельная камера, canvas-«экран»). Входящий — имитация FCM-пуша `sub_type=comms_call` через `adb shell am broadcast` (без входа в Mattermost), после ответа звонок открывался `__gomonDebugJoin(url, true, channelId)` — теперь хук принимает канал пуша. Скриншоты — `docs/evidence/phase2/`.
+
+| Проверка | Результат | Доказательство |
+|---|---|---|
+| Звонок регистрируется в Telecom | ок: `dumpsys telecom` — `state=ACTIVE … prop=[ self_mng], voip=true`, PhoneAccount `SelfManaged SuppVideo Video TransactOps`; `MODE_IN_COMMUNICATION` | `01` |
+| FGS-типы | ок: `MMCallsForegroundService types=0xC4` (phoneCall+camera+microphone) | — |
+| Чип звонка в статус-баре | ок (Telecom) | `06` |
+| Mute из уведомления / PiP ↔ приложение | ок в обе стороны, значок в PiP меняется | `04` |
+| Mute из системы (BT/машина) | **не проверено**: эмулятор не даёт выключить звук Telecom-звонка извне (`KEYCODE_MUTE` не доходит, InCallService для self-managed нет) | — |
+| Эндпоинты | частично: Telecom эмулятора отдаёт только «Динамик» (наушника нет), пикер показывает ровно его; переключение earpiece/BT/проводные — только на устройстве | — |
+| Входящий: экран блокировки, полноэкранный UI | ок, Telecom `RINGING` | `12` |
+| Ответ кнопкой гарнитуры (`KEYCODE_HEADSETHOOK`) | ок: `HeadsetMediaButton` → `onAnswer` → `ACTIVE`, звонок приложения переиспользует этот вызов | — |
+| Ответ из полноэкранного UI | ок: приложение открывается, старт звонка канала → `answer` → `ACTIVE` (тот же call id) | — |
+| Отклонить / не ответить 30 с | ок: `REJECTED` / `MISSED` | — |
+| PiP auto-enter по Home, повторные входы | ок, видео идёт (декодирование растёт) | `02`, `02b` |
+| PiP: действия микрофон и «Завершить» | ок; «Завершить» снимает звонок, Telecom, FGS и окно PiP | `03`, `04` |
+| Закрыть PiP → панель | ок | `05` |
+| Пауза видео в фоне | ок: экран выкл. — `framesDecoded` стоит, после возврата растёт; своя камера всё время уходит вебу | — |
+| Демонстрация экрана с телефона | ок: веб получает `screen_share` 1080×2400, FGS `mediaProjection`, системный чип записи экрана | `08`–`11` |
+| Остановка показа из уведомления / баннера | ок, сервис mediaProjection снимается | — |
+| «Завершить» из уведомления | ок: Telecom `SET_DISCONNECTED (LOCAL)`, FGS снят | — |
+| Назад → свернуть | ок | `07` |
+| Live Updates (promoted) | запрошено (`requestPromotedOngoing`), но образ эмулятора — 16.0 без QPR1, продвижения нет | — |
+
+### Что не проверено
+
+- Реальные устройства: Pixel (Android 16 QPR1+ — Live Updates), Samsung One UI и Xiaomi/HyperOS (Telecom на вендорских прошивках, FSI, автозапуск), BT-гарнитура/машина (ответ, mute, маршрут), проводные наушники, наушник + датчик приближения.
+- Ответ на входящий с настоящим Mattermost-входом и пушем сервера (здесь — имитация пуша и debug-join); ответ гарнитурой при **убитом** JS (ветка с PendingIntent).
+- API < 28 (ручной роутинг) и API 28–33 (бэкпорт Core-Telecom через `ConnectionService`) — эмуляторов нет.
+- Звук на слух и эхо под Telecom.
+
+### Риски
+
+- Core-Telecom 1.1.0 — beta; на вендорских прошивках возможен отказ регистрации — тогда фолбэк на ручной роутинг (проверить, что он срабатывает, а не висит 5 с таймаута).
+- Ответ гарнитурой при убитом процессе зависит от права на запуск активити из фона (BAL); при запрете звонок будет «принят» в Telecom, но экран не откроется до тапа по уведомлению.
+- Держим React-хост resumed в PiP: таймеры и рендер работают, AppState в PiP = `active` (видео-режим решает флаг PiP). Если RN изменит жизненный цикл хоста — пересмотреть.
+- Один BT-эндпоинт в пикере (первый из списка Telecom) — при двух гарнитурах выбора нет.
+- Демонстрация без звука; на Android 14+ согласие спрашивается на каждую сессию (так задумано системой).
+
 ## Источники
 
 - LiveKit RN SDK, релизы: https://github.com/livekit/client-sdk-react-native/releases ; PR #455 (prefixed WebRTC): https://github.com/livekit/client-sdk-react-native/pull/455 ; issue #468: https://github.com/livekit/client-sdk-react-native/issues/468 ; #134 New Arch: https://github.com/livekit/client-sdk-react-native/issues/134
