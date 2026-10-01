@@ -1,0 +1,9 @@
+2026/10/01 20:27:51:343 INFO PushKitController: initialized
+2026/10/01 20:27:51:357 INFO CallKitProvider: initialized
+2026/10/01 20:27:51:455 INFO PushKitController: VoIP token issued, length=160
+2026/10/01 20:27:58:556 INFO PushKitController: VoIP push received channelID=debug-channel subType=comms_call
+2026/10/01 20:27:58:567 INFO CallKitProvider: reportNewIncomingCall uuid=E90959A7-465A-412E-BEB4-2169F6CADC68 ringtone=system
+2026/10/01 20:30:00:605 INFO PushKitController: VoIP push received channelID=debug-channel subType=comms_call
+2026/10/01 20:30:00:605 INFO CallKitProvider: reportNewIncomingCall uuid=543D6C23-82E8-47AE-9830-FAD2323A9BC0 ringtone=system
+2026-10-01 20:28:00.568 Df callservicesd[88186:97ba98e] [com.apple.calls.callservicesd:Default] Disconnecting call because there wont be a U
+2026-10-01 20:30:01.667 Df callservicesd[88186:97bbaaf] [com.apple.calls.callservicesd:Default] Disconnecting call because there wont be a U
