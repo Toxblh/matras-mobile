@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.content.ContextCompat
@@ -47,6 +48,66 @@ class MMCallsForegroundService : Service() {
         /** Re-posts the running call's notification with the current mute / sharing actions. */
         fun refresh() {
             current?.repost()
+        }
+
+        private const val TAG = "MMCallsForegroundService"
+
+        // matras: a stop that arrives before the started service reached onStartCommand is
+        // deferred until it has called startForeground(); stopping it earlier crashes the app
+        // with ForegroundServiceDidNotStartInTimeException (a join that fails right away).
+        private val lock = Any()
+        private var pendingStarts = 0
+        private var stopAfterStart = false
+
+        /** Starts (or updates the types of) the call's foreground service; never throws. */
+        fun start(context: Context, intent: Intent) {
+            synchronized(lock) {
+                pendingStarts++
+                stopAfterStart = false
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: RuntimeException) {
+                // ForegroundServiceStartNotAllowedException (app in the background) and the like.
+                synchronized(lock) { pendingStarts-- }
+                Log.w(TAG, "call foreground service not started", e)
+            }
+        }
+
+        fun stop(context: Context) {
+            synchronized(lock) {
+                if (pendingStarts > 0) {
+                    stopAfterStart = true
+                    return
+                }
+            }
+            context.stopService(Intent(context, MMCallsForegroundService::class.java))
+        }
+
+        /**
+         * The foreground-service types the call may claim, from what is actually granted: since
+         * API 34 (targetSdk 34+) each type needs its permission, or startForeground() throws
+         * SecurityException. Microphone only with RECORD_AUDIO, camera only with CAMERA while
+         * video is on; phoneCall (MANAGE_OWN_CALLS) for a call registered with Telecom, and as
+         * the fallback of a listen-only call, which would otherwise have no type at all.
+         * Screen sharing runs in WebRTC's own mediaProjection service, after the user's consent.
+         *
+         * Pure on purpose (ServiceInfo constants are compile-time ints): the module has no test
+         * setup yet; a JVM test would assert e.g. (mic=false, cam=false, telecom=false,
+         * ownCalls=true) -> PHONE_CALL and (mic=true, cam=true, telecom=false, ownCalls=true) ->
+         * MICROPHONE|CAMERA (regression: Pixel/Android 17 crash when joining before RECORD_AUDIO).
+         */
+        @JvmStatic
+        fun serviceTypes(mic: Boolean, camera: Boolean, telecom: Boolean, ownCalls: Boolean): Int {
+            var type = 0
+            if (mic) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (camera) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            if (ownCalls && (telecom || type == 0)) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+            return type
         }
     }
 
@@ -85,21 +146,36 @@ class MMCallsForegroundService : Service() {
 
         val notification = buildNotification(channelId, title, text, avatar)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            // Only request the camera type while video is actually on (and the
-            // permission has actually been granted) so audio-only calls don't
-            // hold a permission they don't use.
-            var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            // matras: a Core-Telecom call gives the service the phoneCall type as well.
-            if (MMCallsTelecom.isActive) {
-                type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
+        // matras: startForeground() comes first, always (also when the service is about to stop),
+        // and a refused one stops the service instead of the process.
+        val started = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val type = serviceTypes(
+                    mic = granted(android.Manifest.permission.RECORD_AUDIO),
+                    camera = withCamera && granted(android.Manifest.permission.CAMERA),
+                    telecom = MMCallsTelecom.isActive,
+                    ownCalls = granted(android.Manifest.permission.MANAGE_OWN_CALLS),
+                )
+                startForeground(NOTIFICATION_ID, notification, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
             }
-            if (withCamera && hasCameraPermission()) {
-                type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            }
-            startForeground(NOTIFICATION_ID, notification, type)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+            true
+        } catch (e: RuntimeException) {
+            // SecurityException (a type without its permission), ForegroundServiceStartNotAllowedException.
+            Log.w(TAG, "startForeground refused", e)
+            false
+        }
+        val stopNow = synchronized(lock) {
+            if (pendingStarts > 0) pendingStarts--
+            val stop = stopAfterStart && pendingStarts == 0
+            if (stop) stopAfterStart = false
+            stop
+        }
+        if (!started || stopNow) {
+            if (started) stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         // matras: the DM partner's avatar arrives after a network fetch; start the service
@@ -115,10 +191,8 @@ class MMCallsForegroundService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun hasCameraPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED
-    }
+    private fun granted(permission: String): Boolean =
+        ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     private fun ensureChannel(channelId: String, channelName: String, description: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

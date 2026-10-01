@@ -19,6 +19,7 @@ const call: CurrentGomonCall = {
     channelId: 'ch',
     url: 'https://g/call/1?embed=rn#code=ab',
     withCamera: false,
+    withMic: true,
     locale: 'en',
     title: 'Team',
     startedAt: 1,

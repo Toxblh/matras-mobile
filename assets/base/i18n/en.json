@@ -586,6 +586,7 @@
   "gomon.leave_title": "Leave the call?",
   "gomon.link_copied": "Link copied",
   "gomon.lower_hand": "Lower hand",
+  "gomon.mic_denied": "No microphone access: you joined muted and can only listen",
   "gomon.minimize": "Minimize",
   "gomon.more": "More",
   "gomon.mute": "Mute",

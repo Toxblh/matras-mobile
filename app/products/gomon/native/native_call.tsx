@@ -123,18 +123,16 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
     }, [intl]);
 
     // The platform session below needs the call's leave; the call needs the session's route.
-    const media = useRef({reapplyRoute: () => undefined as void, cameraStarted: () => undefined as void});
+    const media = useRef({reapplyRoute: () => undefined as void, mediaStarted: ((() => undefined) as (cam: boolean, mic: boolean) => void)});
     const nc = useGomonNativeCall({
         joinUrl: call.url,
-        mic: true,
+        mic: call.withMic,
         cam: call.withCamera,
         onExit: close,
-        onMedia: (cam) => {
+        onMedia: (cam, mic) => {
             // WebRTC may reset the route when it opens the mic.
             media.current.reapplyRoute();
-            if (cam) {
-                media.current.cameraStarted();
-            }
+            media.current.mediaStarted(cam, mic);
         },
     });
     const {room, call: snapshot} = nc;
@@ -152,8 +150,8 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         }
     }, [moderator, others, nc]);
 
-    const {audio, selectAudio, reapplyRoute, cameraStarted, now} = useGomonCallSession(call, hangUp);
-    media.current = {reapplyRoute, cameraStarted};
+    const {audio, selectAudio, reapplyRoute, mediaStarted, now} = useGomonCallSession(call, hangUp);
+    media.current = {reapplyRoute, mediaStarted};
 
     // Our own screen is not shown back to us: a banner says it is being shared.
     const tiles = buildTiles([room.localParticipant, ...room.remoteParticipants.values()]).filter((t) => !(t.local && t.screen));

@@ -123,15 +123,11 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
             if (config.hasKey("avatarUserId")) putExtra(MMCallsForegroundService.EXTRA_AVATAR_USER_ID, config.getString("avatarUserId"))
             putExtra(MMCallsForegroundService.EXTRA_WITH_CAMERA, config.hasKey("withCamera") && config.getBoolean("withCamera"))
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
-        }
+        MMCallsForegroundService.start(context, intent)
     }
 
     fun foregroundServiceStop() {
-        context.stopService(Intent(context, MMCallsForegroundService::class.java))
+        MMCallsForegroundService.stop(context)
     }
 
     // -------------------------------------------------------------------------

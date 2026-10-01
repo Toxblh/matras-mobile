@@ -61,6 +61,9 @@ export type CurrentGomonCall = {
     callId?: string;
     url: string;
     withCamera: boolean;
+
+    /** False when the microphone permission was denied: the call is joined muted (listen-only). */
+    withMic: boolean;
     locale: string;
     title: string;
     startedAt: number;

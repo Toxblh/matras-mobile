@@ -2,7 +2,7 @@
 // See LICENSE.txt for license information.
 
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {defineMessages, IntlProvider, useIntl} from 'react-intl';
+import {createIntl, defineMessages, IntlProvider, useIntl} from 'react-intl';
 import {Linking, LogBox, Pressable, StyleSheet, View} from 'react-native';
 import WebViewBase, {type WebViewMessageEvent, type WebViewProps} from 'react-native-webview';
 
@@ -10,6 +10,7 @@ import CompassIcon from '@components/compass_icon';
 import {useGomonCallSession} from '@gomon/call_session';
 import AudioOutputButton from '@gomon/components/audio_output_button';
 import GomonCallLayout, {callStyles} from '@gomon/components/call_layout';
+import {hasCameraPermission, hasMicrophonePermission} from '@gomon/permissions';
 import {type CurrentGomonCall, setCurrentGomonCall, useCurrentGomonCall} from '@gomon/store';
 import {bridgeCommand, parseBridgeMessage, urlOrigin} from '@gomon/utils';
 import {getTranslations} from '@i18n';
@@ -159,13 +160,16 @@ const NativeCall = (props: {call: CurrentGomonCall}) => {
 // Debug and dev-app builds only: open a native call by its join URL without a Mattermost login (tests drive
 // it over the JS debugger: Runtime.evaluate `__gomonDebugJoin(url)`).
 if (isMatrasDevBuild) {
-    (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = (url: string, withCamera = true, channelId = '') => {
+    (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = async (url: string, video = true, channelId = '') => {
         LogBox.ignoreAllLogs(true); // the dev overlay covers the call controls in screenshots
+        const withMic = await hasMicrophonePermission(); // as openGomonCall: before the foreground service
+        const withCamera = video && await hasCameraPermission(createIntl({locale: 'ru', messages: getTranslations('ru')}));
         setCurrentGomonCall({
             serverUrl: '',
             channelId, // a pushed ring's channel: the call answers that Telecom ring
             url,
             withCamera,
+            withMic,
             native: true,
             locale: 'ru',
             title: 'Debug',

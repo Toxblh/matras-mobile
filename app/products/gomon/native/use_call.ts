@@ -8,6 +8,7 @@ import {ConnectionQuality, ConnectionState, DisconnectReason, Room, RoomEvent, T
 import {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {AppState, Dimensions, PixelRatio, Platform} from 'react-native';
 
+import {hasMicrophonePermission} from '@gomon/permissions';
 import {generateId} from '@utils/general';
 import {logDebug, logWarning} from '@utils/log';
 
@@ -45,7 +46,7 @@ type Options = {
     onExit: (reason: ExitReason, message?: string) => void;
 
     /** WebRTC opened the mic or camera: re-apply the audio route, upgrade the foreground service. */
-    onMedia: (cam: boolean) => void;
+    onMedia: (cam: boolean, mic: boolean) => void;
 };
 
 /**
@@ -126,7 +127,7 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
         if (intent.cam) {
             await room.localParticipant.setCameraEnabled(true, {facingMode: facing}).catch((e) => report('device_event', {device: 'camera', event: 'error', error: String(e?.name ?? 'Error')}));
         }
-        props.current.onMedia(intent.cam);
+        props.current.onMedia(intent.cam, intent.mic);
         rerender();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,11 +404,15 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
     // ---------------------------------------------------------------- actions
     const local = room.localParticipant;
     const setMic = useCallback(async (next: boolean, from: MuteSource = 'self') => {
+        // Joined listen-only (permission denied): ask again on unmute, from whatever source.
+        if (next && !(await hasMicrophonePermission())) {
+            return;
+        }
         telemetry.current?.markSource(from);
         dispatch({type: 'SetIntent', mic: next});
         try {
             await room.localParticipant.setMicrophoneEnabled(next);
-            props.current.onMedia(room.localParticipant.isCameraEnabled);
+            props.current.onMedia(room.localParticipant.isCameraEnabled, next);
         } catch (e) {
             logWarning('gomon native: mic', e);
             report('device_event', {device: 'mic', event: 'error', error: String((e as Error)?.name ?? 'Error')});
@@ -420,7 +425,7 @@ export function useGomonNativeCall({joinUrl, mic, cam, onExit, onMedia}: Options
         dispatch({type: 'SetIntent', cam: next});
         try {
             await room.localParticipant.setCameraEnabled(next, {facingMode: facing});
-            props.current.onMedia(next);
+            props.current.onMedia(next, room.localParticipant.isMicrophoneEnabled);
         } catch (e) {
             logWarning('gomon native: camera', e);
             report('device_event', {device: 'camera', event: 'error', error: String((e as Error)?.name ?? 'Error')});

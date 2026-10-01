@@ -587,6 +587,7 @@
   "gomon.leave_title": "Выйти из звонка?",
   "gomon.link_copied": "Ссылка скопирована",
   "gomon.lower_hand": "Опустить руку",
+  "gomon.mic_denied": "Нет доступа к микрофону: вы подключились без звука и можете только слушать",
   "gomon.minimize": "Свернуть",
   "gomon.more": "Ещё",
   "gomon.mute": "Выключить микрофон",

@@ -31,6 +31,7 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
     const leaveRef = useRef(leave);
     leaveRef.current = leave;
     const fgCamera = useRef(withCamera);
+    const fgMic = useRef(call.withMic);
 
     const selectAudio = useCallback((device: AudioDeviceType) => {
         pinnedRoute.current = device;
@@ -45,12 +46,14 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
         }
     }, []);
 
-    // The camera was switched on mid-call: the foreground service needs the camera type too,
-    // or the capture stops in the background.
-    const cameraStarted = useCallback(() => {
-        if (!fgCamera.current) {
-            fgCamera.current = true;
-            foregroundServiceStart(intl, true, serverUrl, channelId);
+    // The camera (or a mic granted only mid-call) was switched on: the foreground service needs
+    // that type too, or the capture stops in the background. The service picks its types from
+    // the permissions granted by now.
+    const mediaStarted = useCallback((cam: boolean, mic: boolean) => {
+        if ((cam && !fgCamera.current) || (mic && !fgMic.current)) {
+            fgCamera.current ||= cam;
+            fgMic.current ||= mic;
+            foregroundServiceStart(intl, fgCamera.current, serverUrl, channelId);
         }
     }, [intl, serverUrl, channelId]);
 
@@ -130,5 +133,5 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
         return () => clearInterval(t);
     }, [minimized]);
 
-    return {audio, selectAudio, reapplyRoute, cameraStarted, now};
+    return {audio, selectAudio, reapplyRoute, mediaStarted, now};
 }

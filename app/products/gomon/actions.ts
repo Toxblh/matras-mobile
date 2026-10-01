@@ -23,6 +23,7 @@ const messages = defineMessages({
     failed: {id: 'gomon.call_failed', defaultMessage: 'Could not connect to the call'},
     title: {id: 'gomon.call_title', defaultMessage: 'Call'},
     alreadyInCall: {id: 'gomon.already_in_call', defaultMessage: 'You are already in a call'},
+    micDenied: {id: 'gomon.mic_denied', defaultMessage: 'No microphone access: you joined muted and can only listen'},
 });
 
 // One call at a time: bring the active one back instead of starting another.
@@ -66,7 +67,10 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
     if (expandActiveGomonCall(intl, serverUrl, channelId)) {
         return;
     }
-    await hasMicrophonePermission();
+
+    // Before the call's foreground service and Telecom call start: their microphone / camera
+    // types need the permissions granted (Android 14+ throws SecurityException otherwise).
+    const withMic = await hasMicrophonePermission();
     const withCamera = video && await hasCameraPermission(intl);
     const title = await channelTitle(serverUrl, channelId);
     const native = await isGomonNativeEnabled();
@@ -80,6 +84,7 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
         channelId,
         callId,
         withCamera,
+        withMic,
         url: native ? joinUrl : buildEmbedUrl(joinUrl, !withCamera),
         native,
         locale: intl.locale,
@@ -87,6 +92,9 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
         startedAt: Date.now(),
         minimized: false,
     });
+    if (!withMic) {
+        showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage: intl.formatMessage(messages.micDenied)});
+    }
 }
 
 const showFailure = (intl: IntlShape, error: unknown) => {
