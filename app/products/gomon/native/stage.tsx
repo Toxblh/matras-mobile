@@ -25,8 +25,11 @@ const styles = StyleSheet.create({
     stage: {flex: 1},
     fit: {flex: 1, justifyContent: 'center', alignItems: 'center', gap: GAP},
     row: {flexDirection: 'row', gap: GAP},
-    tile: {borderRadius: 10, overflow: 'hidden', backgroundColor: '#1b1d22', alignItems: 'center', justifyContent: 'center'},
-    speaking: {borderWidth: 2, borderColor: '#3db887'},
+
+    // the border is always there (only its colour changes): resizing the video's native view as
+    // someone starts or stops speaking blanked the tile on Android
+    tile: {borderRadius: 10, overflow: 'hidden', backgroundColor: '#1b1d22', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent'},
+    speaking: {borderColor: '#3db887'},
     video: {...StyleSheet.absoluteFillObject},
     avatar: {width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center'},
     avatarSmall: {width: 40, height: 40, borderRadius: 20},
@@ -110,9 +113,12 @@ type TileProps = {
 
     /** iOS: this tile's video goes to Picture in Picture when the app leaves the screen. */
     pip?: boolean;
+
+    /** The app is in the background: only the PiP tile keeps its video (adaptive stream pauses the rest). */
+    pipOnly?: boolean;
 };
 
-const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small, pip}: TileProps) => {
+const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small, pip, pipOnly}: TileProps) => {
     const intl = useIntl();
     const {p, pub, screen, local} = info;
     const visible = Boolean(pub?.track) && !pub?.isMuted;
@@ -120,13 +126,17 @@ const Tile = ({info, conf, width, height, pinned, mirror, flying, onPress, small
     const hand = screen ? undefined : handOf(conf, p.identity);
     const speaking = p.isSpeaking && !screen;
     const mine = flying.filter((f) => f.identity === p.identity && !screen);
-    const trackRef = visible && pub ? {participant: p, publication: pub, source: pub.source} as TrackReference : undefined;
+    const trackRef = visible && pub && (pip || !pipOnly) ? {participant: p, publication: pub, source: pub.source} as TrackReference : undefined;
     return (
         <Pressable
             onPress={onPress}
             style={[styles.tile, {width, height}, speaking && styles.speaking]}
             testID={`gomon_call.tile.${local ? 'local' : 'remote'}${screen ? '.screen' : ''}`}
+
+            // a changing label re-creates the native view on Android and blanks the video under it:
+            // the mic state is the mic-off icon's own label
             accessibilityLabel={name}
+            accessibilityHint={intl.formatMessage(screen ? messages.tileOpenHint : messages.tilePinHint)}
         >
             {trackRef ? (
                 <VideoTrack
@@ -233,6 +243,7 @@ const FitTiles = ({items, aspectFor, render}: {items: TileInfo[]; aspectFor: (t:
 };
 
 type StageProps = {
+    pipOnly?: boolean;
     tiles: TileInfo[];
     conf: Conf;
     layout: Layout;
@@ -243,7 +254,7 @@ type StageProps = {
 
 /** Grid / speaker view (meeting-web's ConfStage): pins and the large share are personal; a
  *  moderator's spotlight puts the same tile large for everyone. */
-const Stage = ({tiles, conf, layout, lastSpeaker, mirror, flying}: StageProps) => {
+const Stage = ({tiles, conf, layout, lastSpeaker, mirror, flying, pipOnly}: StageProps) => {
     const intl = useIntl();
     const insets = useSafeAreaInsets();
     const win = useWindowDimensions();
@@ -301,6 +312,7 @@ const Stage = ({tiles, conf, layout, lastSpeaker, mirror, flying}: StageProps) =
             onPress={() => onTap(t)}
             small={small}
             pip={t.key === pipKey}
+            pipOnly={pipOnly}
         />
     );
 

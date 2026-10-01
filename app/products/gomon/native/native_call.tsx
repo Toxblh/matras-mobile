@@ -2,11 +2,12 @@
 // See LICENSE.txt for license information.
 
 import {ScreenCapturePickerView} from '@livekit/react-native-webrtc';
+import RNUtils from '@mattermost/rnutils';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {ConnectionQuality} from 'livekit-client';
 import React, {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
-import {Alert, NativeModules, Platform, Pressable, StyleSheet, Text, View, findNodeHandle, type AlertButton} from 'react-native';
+import {Alert, AppState, NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View, findNodeHandle, type AlertButton} from 'react-native';
 
 import CompassIcon, {type CompassIconName} from '@components/compass_icon';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
@@ -14,7 +15,8 @@ import {useGomonCallSession} from '@gomon/call_session';
 import AudioOutputButton from '@gomon/components/audio_output_button';
 import GomonCallLayout, {callStyles} from '@gomon/components/call_layout';
 import {hasCameraPermission} from '@gomon/permissions';
-import {type CurrentGomonCall, setCurrentGomonCall} from '@gomon/store';
+import {type CurrentGomonCall, setCurrentGomonCall, setGomonCallSession, setGomonMinimized} from '@gomon/store';
+import {hapticFeedback} from '@utils/general';
 import {logWarning} from '@utils/log';
 import {showSnackBar} from '@utils/snack_bar';
 
@@ -23,7 +25,11 @@ import {androidMessages, useAndroidCallPlatform} from './android_platform';
 import {confOf, REACTIONS} from './call_core';
 import {useCallKitSession} from './callkit_session';
 import {messages} from './messages';
-import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
+import {AccessSheet, KnockBanner, lobbyOf} from './moderation';
+import {hasSip, PhoneSheet} from './phone';
+import {RecIndicator, RecordItem, RecordSheet} from './recording';
+import ReportSheet from './report';
+import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem, sheetStyles} from './sheets';
 import Stage, {QualityBars, buildTiles, type Layout} from './stage';
 import {useGomonNativeCall, type ExitReason} from './use_call';
 
@@ -72,6 +78,11 @@ const styles = StyleSheet.create({
     shareText: {flex: 1, color: '#fff', fontSize: 13},
     shareStop: {paddingHorizontal: 12, paddingVertical: 8},
     shareStopText: {color: '#fff', fontSize: 13, fontWeight: '700'},
+    companion: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 6, paddingLeft: 12, borderRadius: 8, backgroundColor: '#2a3550'},
+    failed: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 14},
+    failedTitle: {color: '#fff', fontSize: 18, fontWeight: '600', textAlign: 'center'},
+    failedHint: {color: 'rgba(255,255,255,0.72)', fontSize: 14, textAlign: 'center'},
+    failedActs: {flexDirection: 'row', gap: 12, marginTop: 6},
 });
 
 const toast = (customMessage: string) => showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage});
@@ -81,7 +92,8 @@ const Ctl = ({icon, label, onPress, on, off, badge, testID}: CtlProps) => (
     <Pressable
         onPress={onPress}
         style={[styles.ctl, off && styles.ctlOff, on && styles.ctlOn]}
-        accessibilityLabel={label}
+        accessibilityRole='button'
+        accessibilityLabel={badge ? `${label}, ${badge}` : label}
         testID={testID}
     >
         <CompassIcon
@@ -97,10 +109,10 @@ const Ctl = ({icon, label, onPress, on, off, badge, testID}: CtlProps) => (
     </Pressable>
 );
 
-type Sheets = 'people' | 'chat' | 'invite' | 'more' | null;
+type Sheets = 'people' | 'chat' | 'invite' | 'more' | 'access' | 'record' | 'phone' | 'report' | null;
 
 /** gomon call through the LiveKit SDK: meeting-web's call screen, natively. */
-const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
+const NativeCallScreen = ({call, onMediaFailed}: {call: CurrentGomonCall; onMediaFailed: () => void}) => {
     const {minimized} = call;
     const intl = useIntl();
     const [layout, setLayout] = useState<Layout>('auto');
@@ -113,16 +125,22 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             return;
         }
         closed.current = true;
+
+        // the network blocks the call's media: the web's MEDIA_FAILED screen with "Try again"
+        if (reason === 'MEDIA_FAILED') {
+            onMediaFailed();
+            return;
+        }
         setCurrentGomonCall(undefined);
         const ended = ENDED_MSG[reason];
         if (reason === 'JOIN_FAILED') {
             Alert.alert(intl.formatMessage(shared.failed), message);
-        } else if (ended && (reason === 'DISCONNECTED' || reason === 'MEDIA_FAILED')) {
+        } else if (ended && reason === 'DISCONNECTED') {
             Alert.alert(intl.formatMessage(shared.failed), intl.formatMessage(ended));
         } else if (ended) {
             toast(intl.formatMessage(ended));
         }
-    }, [intl]);
+    }, [intl, onMediaFailed]);
 
     // The platform session below needs the call's leave; the call needs the session's route.
     const media = useRef({reapplyRoute: () => undefined as void, mediaStarted: ((() => undefined) as (cam: boolean, mic: boolean) => void)});
@@ -130,6 +148,8 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         joinUrl: call.url,
         mic: call.withMic,
         cam: call.withCamera,
+        session: call.session,
+        onSession: (s) => setGomonCallSession(call.url, s),
         onExit: close,
         onMedia: (cam, mic) => {
             // WebRTC may reset the route when it opens the mic.
@@ -161,6 +181,17 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
     const pipTile = pickPipTile(tiles, nc.lastSpeaker);
     const android = useAndroidCallPlatform(nc, minimized, pipTile);
 
+    // iOS in the background: only the Picture in Picture tile keeps decoding (Android: see android_pip)
+    const [appState, setAppState] = useState<string>(AppState.currentState);
+    useEffect(() => {
+        if (Platform.OS !== 'ios') {
+            return undefined;
+        }
+        const sub = AppState.addEventListener('change', setAppState);
+        return () => sub.remove();
+    }, []);
+    const pipOnly = Platform.OS === 'ios' && appState === 'background';
+
     const askLeave = useCallback(() => {
         if (moderator && others === 0) {
             hangUp();
@@ -187,6 +218,16 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         }
     }, [minimized]);
 
+    // The app is portrait-only on phones; the full-screen call turns with the device, like the gallery.
+    useEffect(() => {
+        if (minimized) {
+            RNUtils.lockPortrait();
+        } else {
+            RNUtils.unlockOrientation();
+        }
+    }, [minimized]);
+    useEffect(() => () => RNUtils.lockPortrait(), []);
+
     // Unread chat badge.
     useEffect(() => nc.chat?.subscribe(tick), [nc.chat]);
 
@@ -207,16 +248,23 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         }
     }, [notice, clearNotice, setMic, intl]);
 
+    const toggleMic = useCallback(() => {
+        hapticFeedback();
+        nc.setMic(!nc.micOn);
+    }, [nc]);
+
     const toggleCam = useCallback(async () => {
         if (!nc.camOn && !(await hasCameraPermission(intl))) {
             return;
         }
+        hapticFeedback();
         nc.setCam(!nc.camOn);
     }, [intl, nc]);
 
     const toggleHand = useCallback(async () => {
         try {
             await nc.api?.hand(nc.callId, !conf.my_hand.raised);
+            hapticFeedback();
             nc.refresh();
         } catch (e) {
             toast((e as ApiError)?.message || intl.formatMessage(messages.error));
@@ -225,6 +273,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
 
     const react = useCallback(async (key: string) => {
         setSheet(null);
+        hapticFeedback();
         try {
             await nc.api?.react(nc.callId, key, nc.connectionId);
         } catch (e) {
@@ -258,6 +307,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         tick();
     }, [room, sharing]);
 
+    const lobbyCount = moderator ? lobbyOf(snapshot).length : 0;
     let chatBadge = '';
     if (nc.chat?.mentioned) {
         chatBadge = '@';
@@ -276,8 +326,9 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         <>
             {nc.connected &&
                 <Pressable
-                    onPress={() => nc.setMic(!nc.micOn)}
+                    onPress={toggleMic}
                     style={callStyles.button}
+                    accessibilityRole='button'
                     accessibilityLabel={intl.formatMessage(nc.micOn ? messages.mute : messages.unmute)}
                     testID='gomon_call.mic'
                 >
@@ -321,6 +372,35 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         <Text style={styles.bannerText}>{banner}</Text>
                     </View>
                 }
+                <RecIndicator
+                    api={nc.api}
+                    call={snapshot}
+                    toast={toast}
+                />
+                {moderator &&
+                    <KnockBanner
+                        api={nc.api}
+                        call={snapshot}
+                        toast={toast}
+                        refresh={nc.refresh}
+                    />
+                }
+                {nc.companion &&
+                    <View
+                        style={styles.companion}
+                        testID='gomon_call.companion'
+                    >
+                        <Text style={styles.shareText}>{intl.formatMessage(messages.companionHint)}</Text>
+                        <Pressable
+                            onPress={() => nc.setCompanion(false)}
+                            style={styles.shareStop}
+                            accessibilityRole='button'
+                            testID='gomon_call.companion.off'
+                        >
+                            <Text style={styles.shareStopText}>{intl.formatMessage(messages.companionOff)}</Text>
+                        </Pressable>
+                    </View>
+                }
                 {android.sharing &&
                     <View
                         style={styles.share}
@@ -345,6 +425,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                             lastSpeaker={nc.lastSpeaker}
                             mirror={nc.facing === 'user'}
                             flying={nc.flying}
+                            pipOnly={pipOnly}
                         />
                     }
                     {others === 0 && nc.conn === 'CONNECTED' &&
@@ -356,21 +437,28 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         </View>
                     }
                 </View>
-                <View style={styles.controls}>
-                    <Ctl
-                        icon={nc.micOn ? 'microphone' : 'microphone-off'}
-                        label={intl.formatMessage(nc.micOn ? messages.mute : messages.unmute)}
-                        onPress={() => nc.setMic(!nc.micOn)}
-                        off={!nc.micOn}
-                        testID='gomon_call.controls.mic'
-                    />
-                    <Ctl
-                        icon={nc.camOn ? 'video-outline' : 'video-off-outline'}
-                        label={intl.formatMessage(nc.camOn ? messages.cameraOff : messages.cameraOn)}
-                        onPress={toggleCam}
-                        off={!nc.camOn}
-                        testID='gomon_call.controls.camera'
-                    />
+                <View
+                    style={styles.controls}
+                    accessibilityRole='toolbar'
+                >
+                    {!nc.companion &&
+                        <Ctl
+                            icon={nc.micOn ? 'microphone' : 'microphone-off'}
+                            label={intl.formatMessage(nc.micOn ? messages.mute : messages.unmute)}
+                            onPress={toggleMic}
+                            off={!nc.micOn}
+                            testID='gomon_call.controls.mic'
+                        />
+                    }
+                    {!nc.companion &&
+                        <Ctl
+                            icon={nc.camOn ? 'video-outline' : 'video-off-outline'}
+                            label={intl.formatMessage(nc.camOn ? messages.cameraOff : messages.cameraOn)}
+                            onPress={toggleCam}
+                            off={!nc.camOn}
+                            testID='gomon_call.controls.camera'
+                        />
+                    }
                     {nc.camOn &&
                         <Ctl
                             icon='sync'
@@ -400,6 +488,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         icon='dots-horizontal'
                         label={intl.formatMessage(messages.more)}
                         onPress={() => setSheet('more')}
+                        badge={lobbyCount ? String(lobbyCount) : undefined}
                         testID='gomon_call.controls.more'
                     />
                 </View>
@@ -446,6 +535,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
     }
 
     const people = snapshot ? snapshot.connections.filter((c) => c.state === 'CONNECTED').length : others + 1;
+    const openSheet = (name: Sheets) => () => setSheet(name);
     return (
         <GomonCallLayout
             call={call}
@@ -462,7 +552,8 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                 onClose={() => setSheet(null)}
                 testID='gomon_call.more'
             >
-                {conf.can.react &&
+                <ScrollView>
+                    {conf.can.react &&
                     <View style={styles.emojiRow}>
                         {REACTIONS.map((r) => (
                             <Pressable
@@ -474,28 +565,52 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                             </Pressable>
                         ))}
                     </View>
-                }
-                <SheetItem
-                    icon='account-multiple-outline'
-                    text={`${intl.formatMessage(messages.participants)} · ${people}`}
-                    onPress={() => setSheet('people')}
-                    testID='gomon_call.more.people'
-                />
-                <SheetItem
-                    icon='account-plus-outline'
-                    text={intl.formatMessage(messages.invite)}
-                    onPress={() => setSheet('invite')}
-                    testID='gomon_call.more.invite'
-                />
-                {Boolean(snapshot?.meet_url) &&
+                    }
+                    <SheetItem
+                        icon='account-multiple-outline'
+                        text={`${intl.formatMessage(messages.participants)} · ${people}`}
+                        onPress={openSheet('people')}
+                        badge={lobbyCount ? String(lobbyCount) : undefined}
+                        testID='gomon_call.more.people'
+                    />
+                    <SheetItem
+                        icon='account-plus-outline'
+                        text={intl.formatMessage(messages.invite)}
+                        onPress={() => setSheet('invite')}
+                        testID='gomon_call.more.invite'
+                    />
+                    {Boolean(snapshot?.meet_url) &&
                     <SheetItem
                         icon='link-variant'
                         text={intl.formatMessage(messages.copyLink)}
                         onPress={copyLink}
                         testID='gomon_call.more.copy_link'
                     />
-                }
-                {android.canShare &&
+                    }
+                    {moderator &&
+                    <SheetItem
+                        icon='link-variant'
+                        text={intl.formatMessage(messages.access)}
+                        sub={snapshot?.locked ? intl.formatMessage(messages.locked) : undefined}
+                        onPress={openSheet('access')}
+                        testID='gomon_call.more.access'
+                    />
+                    }
+                    {moderator &&
+                    <RecordItem
+                        call={snapshot}
+                        onPress={openSheet('record')}
+                    />
+                    }
+                    {hasSip(snapshot) &&
+                    <SheetItem
+                        icon='phone-outline'
+                        text={intl.formatMessage(messages.phone)}
+                        onPress={openSheet('phone')}
+                        testID='gomon_call.more.phone'
+                    />
+                    }
+                    {android.canShare && !nc.companion &&
                     <SheetItem
                         icon='monitor-share'
                         text={intl.formatMessage(android.sharing ? androidMessages.stopShare : androidMessages.shareScreen)}
@@ -505,21 +620,39 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         }}
                         testID='gomon_call.more.share_screen'
                     />
-                }
-                {Platform.OS === 'ios' &&
+                    }
+                    {Platform.OS === 'ios' &&
                     <SheetItem
                         icon='monitor-share'
                         text={intl.formatMessage(sharing ? messages.screenShareStop : messages.screenShare)}
                         onPress={toggleScreenShare}
                         testID='gomon_call.more.screen_share'
                     />
-                }
-                <SheetItem
-                    icon='view-grid-plus-outline'
-                    text={intl.formatMessage(LAYOUT_MSG[layout])}
-                    onPress={() => setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length])}
-                    testID='gomon_call.more.layout'
-                />
+                    }
+                    <SheetItem
+                        icon='view-grid-plus-outline'
+                        text={intl.formatMessage(LAYOUT_MSG[layout])}
+                        onPress={() => setLayout(LAYOUTS[(LAYOUTS.indexOf(layout) + 1) % LAYOUTS.length])}
+                        testID='gomon_call.more.layout'
+                    />
+                    <SheetItem
+                        icon='monitor-account'
+                        text={intl.formatMessage(nc.companion ? messages.companionOff : messages.companionOn)}
+                        sub={nc.companion ? undefined : intl.formatMessage(messages.companionSub)}
+                        onPress={() => {
+                            setSheet(null);
+                            hapticFeedback();
+                            nc.setCompanion(!nc.companion);
+                        }}
+                        testID='gomon_call.more.companion'
+                    />
+                    <SheetItem
+                        icon='alert-circle-outline'
+                        text={intl.formatMessage(messages.report)}
+                        onPress={openSheet('report')}
+                        testID='gomon_call.more.report'
+                    />
+                </ScrollView>
             </Sheet>
             <PeopleSheet
                 visible={sheet === 'people'}
@@ -527,11 +660,48 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                 call={snapshot}
                 room={room}
                 connectionId={nc.connectionId}
+                api={nc.api}
+                toast={toast}
+                refresh={nc.refresh}
             />
             <ChatSheet
                 visible={sheet === 'chat'}
                 onClose={() => setSheet(null)}
                 store={nc.chat}
+                api={nc.api}
+            />
+            <AccessSheet
+                visible={sheet === 'access'}
+                onClose={() => setSheet(null)}
+                api={nc.api}
+                call={snapshot}
+                moderator={moderator}
+                toast={toast}
+                refresh={nc.refresh}
+            />
+            <RecordSheet
+                visible={sheet === 'record'}
+                onClose={() => setSheet(null)}
+                api={nc.api}
+                call={snapshot}
+                refresh={nc.refresh}
+            />
+            <PhoneSheet
+                visible={sheet === 'phone'}
+                onClose={() => setSheet(null)}
+                api={nc.api}
+                call={snapshot}
+                room={room}
+                connectionId={nc.connectionId}
+                toast={toast}
+                refresh={nc.refresh}
+            />
+            <ReportSheet
+                visible={sheet === 'report'}
+                onClose={() => setSheet(null)}
+                send={nc.sendReport}
+                comment={nc.sendReportComment}
+                toast={toast}
             />
             <InviteSheet
                 visible={sheet === 'invite'}
@@ -541,6 +711,90 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                 toast={toast}
             />
         </GomonCallLayout>
+    );
+};
+
+/**
+ * The network let the call's signalling through but not its media (web: MEDIA_FAILED): the
+ * meeting goes on, the person may retry (a new join with the same session) or switch networks.
+ */
+const MediaFailed = ({call, onRetry}: {call: CurrentGomonCall; onRetry: () => void}) => {
+    const intl = useIntl();
+    useEffect(() => setGomonMinimized(false), []);
+    const close = () => setCurrentGomonCall(undefined);
+    return (
+        <GomonCallLayout
+            call={call}
+            people=''
+            now={Date.now()}
+            buttons={null}
+            onLeave={close}
+            confirmLeave={false}
+        >
+            <View
+                style={styles.failed}
+                testID='gomon_call.media_failed'
+            >
+                <CompassIcon
+                    name='alert-outline'
+                    size={44}
+                    color='#ff6b6b'
+                />
+                <Text
+                    style={styles.failedTitle}
+                    accessibilityRole='header'
+                >
+                    {intl.formatMessage(messages.endedMEDIAFAILED)}
+                </Text>
+                <Text style={styles.failedHint}>{intl.formatMessage(messages.mediaFailedHint)}</Text>
+                <View style={styles.failedActs}>
+                    <Pressable
+                        style={[sheetStyles.big, sheetStyles.btnOff]}
+                        onPress={close}
+                        accessibilityRole='button'
+                        testID='gomon_call.media_failed.close'
+                    >
+                        <Text style={sheetStyles.btnText}>{intl.formatMessage(messages.close)}</Text>
+                    </Pressable>
+                    <Pressable
+                        style={[sheetStyles.big, sheetStyles.btn]}
+                        onPress={() => {
+                            hapticFeedback();
+                            onRetry();
+                        }}
+                        accessibilityRole='button'
+                        testID='gomon_call.media_failed.retry'
+                    >
+                        <Text style={sheetStyles.btnText}>{intl.formatMessage(messages.retry)}</Text>
+                    </Pressable>
+                </View>
+            </View>
+        </GomonCallLayout>
+    );
+};
+
+/** The native call, or its network-failure screen; "Try again" mounts a fresh call. */
+const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
+    const [attempt, setAttempt] = useState(0);
+    const [failed, setFailed] = useState(false);
+    const onMediaFailed = useCallback(() => setFailed(true), []);
+    if (failed) {
+        return (
+            <MediaFailed
+                call={call}
+                onRetry={() => {
+                    setFailed(false);
+                    setAttempt((n) => n + 1);
+                }}
+            />
+        );
+    }
+    return (
+        <NativeCallScreen
+            key={attempt}
+            call={call}
+            onMediaFailed={onMediaFailed}
+        />
     );
 };
 

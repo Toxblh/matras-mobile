@@ -90,13 +90,14 @@ const GomonCallLayout = ({call, people, now, buttons, onLeave, confirmLeave = tr
         <View
             collapsable={false}
             pointerEvents='box-none'
-            style={minimized ? [styles.minimized, {top: headerHeight + 8}] : [styles.expanded, {paddingTop: insets.top, paddingBottom: insets.bottom}]}
+            style={minimized ? [styles.minimized, {top: headerHeight + 8}] : [styles.expanded, {paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right}]}
         >
             {!minimized &&
                 <View style={styles.bar}>
                     <Pressable
                         onPress={minimize}
                         style={callStyles.button}
+                        accessibilityRole='button'
                         accessibilityLabel={intl.formatMessage(messages.minimize)}
                         testID='gomon_call.minimize'
                     >
@@ -110,6 +111,7 @@ const GomonCallLayout = ({call, people, now, buttons, onLeave, confirmLeave = tr
                         style={styles.title}
                         numberOfLines={1}
                         onLongPress={toggleNative}
+                        accessibilityRole='header'
                     >
                         {people ? `${title} · ${people}` : title}
                     </Text>
@@ -117,6 +119,7 @@ const GomonCallLayout = ({call, people, now, buttons, onLeave, confirmLeave = tr
                     <Pressable
                         onPress={confirmLeave ? askLeave : onLeave}
                         style={callStyles.hangUp}
+                        accessibilityRole='button'
                         accessibilityLabel={intl.formatMessage(messages.hangUp)}
                         testID='gomon_call.leave'
                     >
