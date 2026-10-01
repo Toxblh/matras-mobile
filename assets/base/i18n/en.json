@@ -601,6 +601,8 @@
   "gomon.reactions": "Reactions",
   "gomon.reconnecting": "Reconnecting…",
   "gomon.return_to_call": "Return to call",
+  "gomon.screen_share": "Share screen",
+  "gomon.screen_share_stop": "Stop sharing screen",
   "gomon.search": "Search",
   "gomon.start_call": "Call",
   "gomon.unmute": "Unmute",

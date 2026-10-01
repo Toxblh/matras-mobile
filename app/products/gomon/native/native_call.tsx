@@ -1,11 +1,12 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
+import {ScreenCapturePickerView} from '@livekit/react-native-webrtc';
 import Clipboard from '@react-native-clipboard/clipboard';
 import {ConnectionQuality} from 'livekit-client';
 import React, {useCallback, useEffect, useReducer, useRef, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
-import {Alert, Pressable, StyleSheet, Text, View, type AlertButton} from 'react-native';
+import {Alert, NativeModules, Platform, Pressable, StyleSheet, Text, View, findNodeHandle, type AlertButton} from 'react-native';
 
 import CompassIcon, {type CompassIconName} from '@components/compass_icon';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
@@ -230,6 +231,23 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         }
     }, [snapshot?.meet_url, intl]);
 
+    // iOS: the system broadcast picker starts the Broadcast Upload Extension (ScreenShare
+    // target), whose frames reach LiveKit through the app group socket.
+    const picker = useRef(null);
+    const sharing = room.localParticipant.isScreenShareEnabled;
+    const toggleScreenShare = useCallback(async () => {
+        setSheet(null);
+        try {
+            if (!sharing) {
+                await NativeModules.ScreenCapturePickerViewManager.show(findNodeHandle(picker.current));
+            }
+            await room.localParticipant.setScreenShareEnabled(!sharing);
+        } catch (e) {
+            logWarning('gomon native: screen share', e);
+        }
+        tick();
+    }, [room, sharing]);
+
     let chatBadge = '';
     if (nc.chat?.mentioned) {
         chatBadge = '@';
@@ -391,6 +409,7 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             confirmLeave={false}
         >
             {body}
+            {Platform.OS === 'ios' && <ScreenCapturePickerView ref={picker}/>}
             <Sheet
                 visible={sheet === 'more'}
                 onClose={() => setSheet(null)}
@@ -427,6 +446,14 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         text={intl.formatMessage(messages.copyLink)}
                         onPress={copyLink}
                         testID='gomon_call.more.copy_link'
+                    />
+                }
+                {Platform.OS === 'ios' &&
+                    <SheetItem
+                        icon='monitor-share'
+                        text={intl.formatMessage(sharing ? messages.screenShareStop : messages.screenShare)}
+                        onPress={toggleScreenShare}
+                        testID='gomon_call.more.screen_share'
                     />
                 }
                 <SheetItem

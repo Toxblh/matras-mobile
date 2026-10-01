@@ -45,6 +45,8 @@ export const messages = defineMessages({
     reactFailed: {id: 'gomon.react_failed', defaultMessage: 'Could not send the reaction'},
     reactions: {id: 'gomon.reactions', defaultMessage: 'Reactions'},
     reconnecting: {id: 'gomon.reconnecting', defaultMessage: 'Reconnecting…'},
+    screenShare: {id: 'gomon.screen_share', defaultMessage: 'Share screen'},
+    screenShareStop: {id: 'gomon.screen_share_stop', defaultMessage: 'Stop sharing screen'},
     search: {id: 'gomon.search', defaultMessage: 'Search'},
     unmute: {id: 'gomon.unmute', defaultMessage: 'Unmute'},
     unmuteAsk: {id: 'gomon.unmute_ask', defaultMessage: '{name} asks you to turn on the microphone'},
