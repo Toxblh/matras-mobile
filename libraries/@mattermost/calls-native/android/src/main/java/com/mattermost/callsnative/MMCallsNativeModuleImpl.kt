@@ -138,7 +138,19 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     // Audio session lifecycle
     // -------------------------------------------------------------------------
 
+    // matras: a gomon call registered with Core-Telecom (MMCallsTelecom) — Telecom owns the
+    // mode, focus and routing; this module only relays the endpoints and runs the proximity lock.
+    private var telecomSession = false
+
     fun startAudioSession(promise: Promise?) {
+        if (audioManager == null && MMCallsTelecom.isActive) {
+            audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            telecomSession = true
+            MMCallsTelecom.onRouteChanged = { mainHandler.post { emitAudioRouteChanged() } }
+            emitAudioRouteChanged()
+            promise?.resolve(null)
+            return
+        }
         if (audioManager != null) {
             // Already started — don't re-snapshot the already-modified audio
             // state or we'll restore MODE_IN_COMMUNICATION on stopAudioSession.
@@ -192,6 +204,14 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     }
 
     fun stopAudioSession(promise: Promise?) {
+        if (telecomSession) {
+            telecomSession = false
+            MMCallsTelecom.onRouteChanged = null
+            audioManager = null
+            updateProximity("NONE")
+            promise?.resolve(null)
+            return
+        }
         val audio = audioManager ?: (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager)
         restoreOriginalRoute(audio)
         audio.mode = origAudioMode
@@ -216,6 +236,11 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     // -------------------------------------------------------------------------
 
     fun setAudioRoute(route: String, promise: Promise?) {
+        if (telecomSession) {
+            MMCallsTelecom.requestRoute(route)
+            promise?.resolve(null)
+            return
+        }
         val audio = audioManager ?: run { promise?.resolve(null); return }
         when (route) {
             "SPEAKER_PHONE" -> {
@@ -384,6 +409,9 @@ class MMCallsNativeModuleImpl(private val context: ReactApplicationContext) {
     }
 
     private fun buildAudioRouteMap(): WritableMap {
+        if (telecomSession) {
+            MMCallsTelecom.routeMap()?.let { return it }
+        }
         val audio = audioManager ?: (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager)
         val available = mutableListOf("SPEAKER_PHONE", "EARPIECE")
 

@@ -158,11 +158,11 @@ const NativeCall = (props: {call: CurrentGomonCall}) => {
 // Debug builds only: open a native call by its join URL without a Mattermost login (tests drive
 // it over the JS debugger: Runtime.evaluate `__gomonDebugJoin(url)`).
 if (__DEV__) {
-    (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = (url: string, withCamera = true) => {
+    (globalThis as {__gomonDebugJoin?: unknown}).__gomonDebugJoin = (url: string, withCamera = true, channelId = '') => {
         LogBox.ignoreAllLogs(true); // the dev overlay covers the call controls in screenshots
         setCurrentGomonCall({
             serverUrl: '',
-            channelId: '',
+            channelId, // a pushed ring's channel: the call answers that Telecom ring
             url,
             withCamera,
             native: true,

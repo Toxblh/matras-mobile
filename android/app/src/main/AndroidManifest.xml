@@ -25,6 +25,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- matras: screen sharing from the phone in gomon calls (MediaProjectionService of the WebRTC library) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <!-- matras: full-screen incoming-call ring on a locked screen -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <!-- matras: self-update of sideloaded APKs (SelfUpdateModule) -->
@@ -84,6 +86,7 @@
         android:theme="@style/AppTheme"
         android:exported="true"
         android:taskAffinity=""
+        android:supportsPictureInPicture="true"
       >
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />

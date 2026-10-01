@@ -8,6 +8,7 @@ import {BackHandler, DeviceEventEmitter} from 'react-native';
 
 import {GOMON_LEAVE} from '@gomon/constants';
 import {foregroundServiceStart, foregroundServiceStop} from '@gomon/foreground_service';
+import {endTelecomCall, startTelecomCall} from '@gomon/native/android_platform';
 import {type CurrentGomonCall, setGomonMinimized} from '@gomon/store';
 import {nextAudioRoute} from '@gomon/utils';
 import {useCurrentScreen} from '@store/navigation_store';
@@ -19,7 +20,7 @@ import {logWarning} from '@utils/log';
  * the ongoing-call notification's "Hang up" and the duration tick of the minimized bar.
  */
 export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
-    const {serverUrl, channelId, withCamera, minimized} = call;
+    const {serverUrl, channelId, withCamera, minimized, title} = call;
     const intl = useIntl();
     const currentScreen = useCurrentScreen();
     const [audio, setAudio] = useState<AudioRoute>();
@@ -75,17 +76,31 @@ export function useGomonCallSession(call: CurrentGomonCall, leave: () => void) {
             }
         };
         const routeSub = CallsNative.onAudioRouteChanged(onRoute);
-        CallsNative.startAudioSession().
-            then(() => CallsNative.getAudioRoute()).
-            then(onRoute).
+
+        // Android: the call is registered with Telecom first, which then owns the routing.
+        let ended = false;
+        startTelecomCall(channelId, title, withCamera).
+            then(async (telecom) => {
+                if (ended) {
+                    endTelecomCall();
+                    return;
+                }
+                if (telecom) {
+                    foregroundServiceStart(intl, fgCamera.current, serverUrl, channelId); // + the phoneCall type
+                }
+                await CallsNative.startAudioSession();
+                onRoute(await CallsNative.getAudioRoute());
+            }).
             catch((e) => logWarning('gomon: audio session', e));
 
         // "Hang up" on the ongoing-call notification (calls_native.ts).
         const sub = DeviceEventEmitter.addListener(GOMON_LEAVE, () => leaveRef.current());
         return () => {
+            ended = true;
             sub.remove();
             routeSub.remove();
             CallsNative.stopAudioSession();
+            endTelecomCall();
             foregroundServiceStop();
         };
 

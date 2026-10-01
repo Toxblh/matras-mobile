@@ -55,4 +55,6 @@ repositories {
 
 dependencies {
     implementation 'com.facebook.react:react-native'
+    // matras: gomon calls registered with the system (MMCallsTelecom).
+    implementation 'androidx.core:core-telecom:1.1.0-beta01'
 }

@@ -17,6 +17,8 @@ import {type CurrentGomonCall, setCurrentGomonCall} from '@gomon/store';
 import {logWarning} from '@utils/log';
 import {showSnackBar} from '@utils/snack_bar';
 
+import {pickPipTile} from './android_pip';
+import {androidMessages, useAndroidCallPlatform} from './android_platform';
 import {messages} from './messages';
 import {confOf, REACTIONS} from './shared/conf';
 import {ChatSheet, InviteSheet, PeopleSheet, Sheet, SheetItem} from './sheets';
@@ -63,6 +65,11 @@ const styles = StyleSheet.create({
     feedItem: {flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.55)'},
     feedEmoji: {fontSize: 18},
     feedName: {color: '#fff', fontSize: 12},
+    pip: {...StyleSheet.absoluteFillObject, backgroundColor: '#000'},
+    share: {flexDirection: 'row', alignItems: 'center', marginHorizontal: 8, marginBottom: 6, paddingLeft: 12, borderRadius: 8, backgroundColor: '#1c58d9'},
+    shareText: {flex: 1, color: '#fff', fontSize: 13},
+    shareStop: {paddingHorizontal: 12, paddingVertical: 8},
+    shareStopText: {color: '#fff', fontSize: 13, fontWeight: '700'},
 });
 
 const toast = (customMessage: string) => showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage});
@@ -147,6 +154,11 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
 
     const {audio, selectAudio, reapplyRoute, cameraStarted, now} = useGomonCallSession(call, hangUp);
     media.current = {reapplyRoute, cameraStarted};
+
+    // Our own screen is not shown back to us: a banner says it is being shared.
+    const tiles = buildTiles([room.localParticipant, ...room.remoteParticipants.values()]).filter((t) => !(t.local && t.screen));
+    const pipTile = pickPipTile(tiles, nc.lastSpeaker);
+    const android = useAndroidCallPlatform(nc, minimized, pipTile);
 
     const askLeave = useCallback(() => {
         if (moderator && others === 0) {
@@ -275,7 +287,6 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
             </View>
         );
     } else if (!minimized) {
-        const tiles = buildTiles([room.localParticipant, ...room.remoteParticipants.values()]);
         let banner: string | undefined;
         if (nc.reconnecting) {
             banner = intl.formatMessage(messages.reconnecting);
@@ -292,15 +303,32 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         <Text style={styles.bannerText}>{banner}</Text>
                     </View>
                 }
+                {android.sharing &&
+                    <View
+                        style={styles.share}
+                        testID='gomon_call.sharing'
+                    >
+                        <Text style={styles.shareText}>{intl.formatMessage(androidMessages.sharing)}</Text>
+                        <Pressable
+                            onPress={android.toggleShare}
+                            style={styles.shareStop}
+                            testID='gomon_call.sharing.stop'
+                        >
+                            <Text style={styles.shareStopText}>{intl.formatMessage(androidMessages.stopShare)}</Text>
+                        </Pressable>
+                    </View>
+                }
                 <View style={styles.body}>
-                    <Stage
-                        tiles={tiles}
-                        conf={conf}
-                        layout={layout}
-                        lastSpeaker={nc.lastSpeaker}
-                        mirror={nc.facing === 'user'}
-                        flying={nc.flying}
-                    />
+                    {android.view === 'full' &&
+                        <Stage
+                            tiles={tiles}
+                            conf={conf}
+                            layout={layout}
+                            lastSpeaker={nc.lastSpeaker}
+                            mirror={nc.facing === 'user'}
+                            flying={nc.flying}
+                        />
+                    }
                     {others === 0 && nc.conn === 'CONNECTED' &&
                         <View
                             style={styles.waiting}
@@ -378,6 +406,27 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
         );
     }
 
+    // Android PiP: only the main video, no controls (the window has mic / hang-up actions).
+    if (android.view === 'pip') {
+        return (
+            <View
+                style={styles.pip}
+                testID='gomon_call.pip'
+            >
+                {pipTile &&
+                    <Stage
+                        tiles={[pipTile]}
+                        conf={conf}
+                        layout='grid'
+                        lastSpeaker={null}
+                        mirror={nc.facing === 'user'}
+                        flying={[]}
+                    />
+                }
+            </View>
+        );
+    }
+
     const people = snapshot ? snapshot.connections.filter((c) => c.state === 'CONNECTED').length : others + 1;
     return (
         <GomonCallLayout
@@ -425,6 +474,17 @@ const GomonNativeCall = ({call}: {call: CurrentGomonCall}) => {
                         text={intl.formatMessage(messages.copyLink)}
                         onPress={copyLink}
                         testID='gomon_call.more.copy_link'
+                    />
+                }
+                {android.canShare &&
+                    <SheetItem
+                        icon='monitor-share'
+                        text={intl.formatMessage(android.sharing ? androidMessages.stopShare : androidMessages.shareScreen)}
+                        onPress={() => {
+                            setSheet(null);
+                            android.toggleShare();
+                        }}
+                        testID='gomon_call.more.share_screen'
                     />
                 }
                 <SheetItem

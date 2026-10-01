@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Bundle
 import com.facebook.react.bridge.Arguments
 import com.mattermost.callsnative.MMCallsIncomingCall
+import com.mattermost.callsnative.MMCallsTelecom
 import com.mattermost.helpers.Network
 import com.mattermost.turbolog.TurboLog
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -45,6 +46,7 @@ class CallActionReceiver : BroadcastReceiver() {
         }
         val uuid = intent.getStringExtra(MMCallsIncomingCall.EXTRA_UUID)
         MMCallsIncomingCall.cancel(context, uuid)
+        MMCallsTelecom.reject(intent.getStringExtra(MMCallsIncomingCall.EXTRA_CHANNEL_ID))
 
         // gomon calls are always declined from here: JS keeps no state for a pushed gomon ring.
         val isComms = intent.getBooleanExtra(EXTRA_COMMS, false)

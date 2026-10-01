@@ -34,6 +34,7 @@ defineMessages({
 import {storeVoIPDeviceToken} from '@actions/app/global';
 import {Device} from '@constants';
 import {GOMON_LEAVE} from '@gomon/constants';
+import {initGomonTelecom} from '@gomon/native/android_telecom';
 import {getCurrentGomonCall} from '@gomon/store';
 import {DEFAULT_LOCALE} from '@i18n';
 import {getIntlShape, isBetaApp} from '@utils/general';
@@ -47,6 +48,7 @@ class CallsNativeSingleton {
     init() {
         if (Platform.OS === 'android') {
             this.askForFullScreenCalls();
+            initGomonTelecom();
         }
         this.subscriptions?.forEach((s) => s.remove());
         this.subscriptions = [
