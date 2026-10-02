@@ -5,4 +5,7 @@
     <string name="calls_decline">Decline</string>
     <string name="calls_hang_up">Hang up</string>
     <string name="calls_channel_incoming">Incoming calls</string>
+    <string name="calls_mute">Mute</string>
+    <string name="calls_unmute">Unmute</string>
+    <string name="calls_stop_share">Stop sharing</string>
 </resources>

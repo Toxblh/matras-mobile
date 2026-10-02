@@ -42,8 +42,6 @@ describe('ChannelHeader Index', () => {
     function getBaseProps(): ComponentProps<typeof ChannelHeader> {
         return {
             channelId,
-            callsEnabledInChannel: false,
-            groupCallsAllowed: false,
             shouldRenderBookmarks: false,
             shouldRenderChannelBanner: false,
             isTabletView: false,

@@ -7,7 +7,7 @@ import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
 import ChannelActions from '@components/channel_actions';
 import ChannelBookmarks from '@components/channel_bookmarks';
-import {General, Screens} from '@constants';
+import {Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
@@ -24,9 +24,7 @@ type Props = {
     canAddBookmarks: boolean;
     channelId: string;
     isBookmarksEnabled: boolean;
-    isCallsEnabledInChannel: boolean;
     isPlaybooksEnabled: boolean;
-    groupCallsAllowed: boolean;
     canManageMembers: boolean;
     isCRTEnabled: boolean;
     type?: ChannelType;
@@ -57,9 +55,7 @@ const ChannelInfo = ({
     canManageMembers,
     channelId,
     isBookmarksEnabled,
-    isCallsEnabledInChannel,
     isPlaybooksEnabled,
-    groupCallsAllowed,
     isCRTEnabled,
     type,
     hasChannelSettingsActions,
@@ -69,13 +65,6 @@ const ChannelInfo = ({
     const theme = useTheme();
     const serverUrl = useServerUrl();
     const styles = getStyleSheet(theme);
-
-    // NOTE: isCallsEnabledInChannel will be true/false (not undefined) based on explicit state + the DefaultEnabled system setting
-    //   which comes from observeIsCallsEnabledInChannel
-    let callsAvailable = isCallsEnabledInChannel;
-    if (!groupCallsAllowed && type !== General.DM_CHANNEL) {
-        callsAvailable = false;
-    }
 
     const onPressed = useCallback(() => {
         return navigateBack();
@@ -111,7 +100,6 @@ const ChannelInfo = ({
                         channelId={channelId}
                         inModal={true}
                         dismissChannelInfo={onPressed}
-                        callsEnabled={callsAvailable}
                         testID='channel_info.channel_actions'
                     />
                     <Extra channelId={channelId}/>
@@ -119,7 +107,6 @@ const ChannelInfo = ({
                     <Options
                         channelId={channelId}
                         type={type}
-                        callsEnabled={isCallsEnabledInChannel}
                         canManageMembers={canManageMembers}
                         isCRTEnabled={isCRTEnabled}
                         isPlaybooksEnabled={isPlaybooksEnabled}

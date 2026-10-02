@@ -32,7 +32,6 @@ describe('ChannelInfoOptions', () => {
     function getBaseProps(): ComponentProps<typeof ChannelInfoOptions> {
         return {
             channelId: 'channel-id',
-            callsEnabled: false,
             canManageMembers: false,
             isCRTEnabled: false,
             isPlaybooksEnabled: true,

@@ -4,18 +4,18 @@
 import AVFoundation
 import Foundation
 import Gekidou
-import WebRTC
+import LiveKitWebRTC
 
 /// Owns the `AVAudioSession` configuration for a Calls voice session, and
 /// bridges CallKit's `didActivate` / `didDeactivate` callbacks into
-/// react-native-webrtc's `RTCAudioSession` singleton — which is the
+/// react-native-webrtc's `LKRTCAudioSession` singleton — which is the
 /// integration point officially documented by react-native-webrtc.
 ///
-/// All AVAudioSession mutations go through `RTCAudioSession.sharedInstance()`
+/// All AVAudioSession mutations go through `LKRTCAudioSession.sharedInstance()`
 /// (WebRTC's proxy) via `withConfigurationLock`; only read-only route inspection
 /// touches AVAudioSession directly.
 @objc public final class AudioSessionManager: NSObject {
-    private var rtcSession: RTCAudioSession { RTCAudioSession.sharedInstance() }
+    private var rtcSession: LKRTCAudioSession { LKRTCAudioSession.sharedInstance() }
     private var avSession: AVAudioSession { AVAudioSession.sharedInstance() }
     private var ringtonePlayer: AVAudioPlayer?
     weak var bridge: CallsBridge?
@@ -37,7 +37,7 @@ import WebRTC
 
     // MARK: - Configuration lock
 
-    /// Runs `body` holding WebRTC's configuration lock, which every `RTCAudioSession`
+    /// Runs `body` holding WebRTC's configuration lock, which every `LKRTCAudioSession`
     /// proxy setter requires: they open with a `checkLock:` and fail with
     /// `kRTCAudioSessionErrorLockRequired` ("Must call lockForConfiguration before
     /// calling this method") when it isn't held. `setCategory` and `setActive` are the
@@ -52,7 +52,7 @@ import WebRTC
 
     /// Apply the category + mode + options for a Calls voice session.
     /// Called from `CXAnswerCallAction` (incoming) and `CXStartCallAction` (outgoing).
-    /// Also overwrites WebRTC's stored RTCAudioSessionConfiguration so that
+    /// Also overwrites WebRTC's stored LKRTCAudioSessionConfiguration so that
     /// any internal reconfiguration WebRTC performs (e.g. on audioSessionDidActivate)
     /// uses the same options we set — specifically .allowBluetoothHFP — rather
     /// than its own defaults which don't include Bluetooth options.
@@ -66,17 +66,20 @@ import WebRTC
     /// unconfigured, so we configure it here as a fallback and surface any error.
     @objc(startAudioSessionWithError:)
     public func startAudioSession() throws {
-        guard avSession.category != .playAndRecord else { return }
-        try configureForCallThrowing()
+        if avSession.category != .playAndRecord {
+            try configureForCallThrowing()
+        }
+        // matras: always, the category outlives a previous call whose teardown disabled audio;
+        // with manual audio the LiveKit audio engine does not run until this is set.
         rtcSession.isAudioEnabled = true
     }
 
     private func configureForCallThrowing() throws {
-        let webRTCConfig = RTCAudioSessionConfiguration()
+        let webRTCConfig = LKRTCAudioSessionConfiguration()
         webRTCConfig.category = AVAudioSession.Category.playAndRecord.rawValue
         webRTCConfig.categoryOptions = [.allowBluetoothHFP, .allowBluetoothA2DP, .duckOthers]
         webRTCConfig.mode = AVAudioSession.Mode.voiceChat.rawValue
-        RTCAudioSessionConfiguration.setWebRTC(webRTCConfig)
+        LKRTCAudioSessionConfiguration.setWebRTC(webRTCConfig)
 
         do {
             try withConfigurationLock {
@@ -97,7 +100,7 @@ import WebRTC
 
     /// Called from JS `stopAudioSession` when the RTC connection closes.
     /// For CallKit-backed calls this runs before `provider(_:didDeactivate:)` arrives —
-    /// the early `setActive(false)` is redundant but harmless: RTCAudioSession
+    /// the early `setActive(false)` is redundant but harmless: LKRTCAudioSession
     /// tolerates a deactivation call on an already-inactive session. When CallKit
     /// registration failed and `didDeactivate` will never fire, this is the only
     /// teardown path.
@@ -120,7 +123,7 @@ import WebRTC
     // MARK: - Audio route selection
 
     /// Select the output audio route. All mutations go through
-    /// `RTCAudioSession` with the configuration lock held.
+    /// `LKRTCAudioSession` with the configuration lock held.
     /// - `SPEAKER_PHONE`: overrides output to built-in speaker.
     /// - `EARPIECE`: clears override; prefers built-in mic input so the
     ///   system routes output to the receiver.
@@ -132,7 +135,7 @@ import WebRTC
         // overrideOutputAudioPort and setPreferredInput/setPreferredOutput are
         // output-routing calls that don't affect WebRTC's internal audio
         // configuration, so we call them directly on AVAudioSession rather than
-        // going through RTCAudioSession. Using the RTCAudioSession proxy for
+        // going through LKRTCAudioSession. Using the LKRTCAudioSession proxy for
         // these caused spurious route-change notifications that fought with
         // CallKit's own speaker-button handling.
         do {
@@ -241,11 +244,11 @@ import WebRTC
     // MARK: - CallKit lifecycle forwarding
 
     /// CallKit just activated the audio session. Forward to
-    /// `RTCAudioSession` so react-native-webrtc's internal state matches
+    /// `LKRTCAudioSession` so react-native-webrtc's internal state matches
     /// reality and the audio unit can start when peer-connection audio is
     /// ready. Per react-native-webrtc's iOS docs:
     ///   "your CXProviderDelegate should call through to
-    ///    RTCAudioSession.sharedInstance.audioSessionDidActivate accordingly."
+    ///    LKRTCAudioSession.sharedInstance.audioSessionDidActivate accordingly."
     ///
     /// No configuration lock here or in `deactivated(_:)`: neither
     /// `audioSessionDidActivate`/`Deactivate` nor `isAudioEnabled` is a
@@ -256,7 +259,7 @@ import WebRTC
         // handed over the session. Must come after audioSessionDidActivate
         // so WebRTC's internal state is consistent before the unit starts.
         rtcSession.isAudioEnabled = true
-        GekidouLogger.shared.log(.info, "AudioSessionManager: forwarded didActivate to RTCAudioSession")
+        GekidouLogger.shared.log(.info, "AudioSessionManager: forwarded didActivate to LKRTCAudioSession")
     }
 
     /// Symmetric for deactivation.
@@ -264,7 +267,7 @@ import WebRTC
         // Stop WebRTC's audio unit before handing the session back to CallKit.
         rtcSession.isAudioEnabled = false
         rtcSession.audioSessionDidDeactivate(audioSession)
-        GekidouLogger.shared.log(.info, "AudioSessionManager: forwarded didDeactivate to RTCAudioSession")
+        GekidouLogger.shared.log(.info, "AudioSessionManager: forwarded didDeactivate to LKRTCAudioSession")
     }
 
     // MARK: - Ringtone

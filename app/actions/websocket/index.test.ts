@@ -12,8 +12,6 @@ import {entry, handleEntryAfterLoadNavigation} from '@actions/remote/entry/commo
 import {deferredAppEntryActions} from '@actions/remote/entry/deferred';
 import {fetchPostsForChannel, fetchPostThread} from '@actions/remote/post';
 import {openAllUnreadChannels} from '@actions/remote/preference';
-import {loadConfigAndCalls} from '@calls/actions/calls';
-import {isSupportedServerCalls} from '@calls/utils';
 import DatabaseManager from '@database/manager';
 import AppsManager from '@managers/apps_manager';
 import SessionAttributesManager from '@managers/session_attributes_manager';
@@ -39,8 +37,6 @@ jest.mock('@actions/remote/post');
 jest.mock('@actions/remote/scheduled_post');
 jest.mock('@actions/remote/preference');
 jest.mock('@actions/remote/user');
-jest.mock('@calls/actions/calls');
-jest.mock('@calls/utils');
 jest.mock('@database/manager');
 jest.mock('@managers/apps_manager');
 jest.mock('@queries/app/servers');
@@ -108,7 +104,6 @@ describe('WebSocket Index Actions', () => {
                 locale: 'en',
             }));
             jest.mocked(getConfig).mockResolvedValue({Version: '9.0.0'} as ClientConfig);
-            jest.mocked(isSupportedServerCalls).mockReturnValue(true);
 
             const error = await handleFirstConnect(serverUrl, groupLabel);
 
@@ -116,7 +111,6 @@ describe('WebSocket Index Actions', () => {
             expect(entry).toHaveBeenCalled();
             expect(handleEntryAfterLoadNavigation).toHaveBeenCalled();
             expect(setLastFullSync).toHaveBeenCalled();
-            expect(loadConfigAndCalls).toHaveBeenCalled();
             expect(deferredAppEntryActions).toHaveBeenCalled();
             expect(handlePlaybookReconnect).toHaveBeenCalledWith(serverUrl);
             expect(SessionAttributesManager.refreshManifest).toHaveBeenCalledWith(serverUrl);
@@ -160,7 +154,6 @@ describe('WebSocket Index Actions', () => {
                 locale: 'en',
             }));
             jest.mocked(getConfig).mockResolvedValue({Version: '9.0.0'} as ClientConfig);
-            jest.mocked(isSupportedServerCalls).mockReturnValue(true);
             jest.mocked(getActiveServerUrl).mockResolvedValue(serverUrl);
 
             const error = await handleReconnect(serverUrl);
@@ -170,7 +163,6 @@ describe('WebSocket Index Actions', () => {
             expect(entry).toHaveBeenCalled();
             expect(handleEntryAfterLoadNavigation).toHaveBeenCalled();
             expect(setLastFullSync).toHaveBeenCalled();
-            expect(loadConfigAndCalls).toHaveBeenCalled();
             expect(deferredAppEntryActions).toHaveBeenCalled();
             expect(openAllUnreadChannels).toHaveBeenCalled();
             expect(dataRetentionCleanup).toHaveBeenCalled();

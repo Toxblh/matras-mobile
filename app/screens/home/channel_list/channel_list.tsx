@@ -11,7 +11,6 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {storeLastViewedTeamIdAndServer} from '@actions/app/global';
 import {refetchCurrentUser} from '@actions/remote/user';
-import FloatingCallContainer from '@calls/components/floating_call_container';
 import AnnouncementBanner from '@components/announcement_banner';
 import ConnectionBanner from '@components/connection_banner';
 import TeamSidebar from '@components/team_sidebar';
@@ -46,7 +45,6 @@ type ChannelProps = {
     currentUserId?: string;
     currentTeamId: string;
     hasCurrentUser: boolean;
-    showIncomingCalls: boolean;
 };
 
 const styles = StyleSheet.create({
@@ -220,12 +218,6 @@ const ChannelListScreen = (props: ChannelProps) => {
                     />
                     {isTablet && props.hasChannels &&
                     <AdditionalTabletView/>
-                    }
-                    {props.showIncomingCalls && !isTablet &&
-                    <FloatingCallContainer
-                        showIncomingCalls={props.showIncomingCalls}
-                        channelsScreen={true}
-                    />
                     }
                 </Animated.View>
             </View>

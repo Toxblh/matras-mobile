@@ -3,7 +3,7 @@
 
 import Foundation
 import Gekidou
-import WebRTC
+import LiveKitWebRTC
 
 /// `CallsBridge` is the singleton that:
 ///  - owns the PushKit + CallKit + AVAudioSession managers,
@@ -64,14 +64,28 @@ import WebRTC
         // (which would duck the CallKit ringtone via .duckOthers). Instead
         // we enable the audio unit explicitly in AudioSessionManager.activated
         // after CallKit hands the session over via didActivate.
-        RTCAudioSession.sharedInstance().useManualAudio = true
-        RTCAudioSession.sharedInstance().isAudioEnabled = false
+        LKRTCAudioSession.sharedInstance().useManualAudio = true
+        LKRTCAudioSession.sharedInstance().isAudioEnabled = false
 
         // Force evaluation of the lazy properties so the underlying registry
         // and provider are allocated now, not when JS first calls in.
         _ = pushKitController
         _ = callKitProvider
         _ = audioSession
+
+        #if DEBUG
+        // matras: the simulator gets no VoIP pushes. In debug builds
+        // `xcrun simctl spawn booted notifyutil -p ru.toxblh.matras.debug-voip` rings a gomon
+        // incoming call through the PushKit path (without the signature check).
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(), nil, { _, _, _, _, _ in
+            DispatchQueue.main.async {
+                CallsBridge.shared.pushKitController.handle([
+                    "sub_type": "comms_call", "channel_id": "debug-channel", "server_id": "debug-server",
+                    "channel_name": "Анна Веб", "sender_id": "debug", "sender_name": "Анна Веб",
+                ], verify: false) {}
+            }
+        }, "ru.toxblh.matras.debug-voip" as CFString, nil, .deliverImmediately)
+        #endif
     }
 
     /// Called by `MMCallsNative.startObserving` when JS has attached its

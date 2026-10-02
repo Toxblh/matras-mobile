@@ -4,10 +4,9 @@
 import {act, fireEvent, waitFor} from '@testing-library/react-native';
 import React, {type ComponentProps} from 'react';
 
-import {handleCallsSlashCommand} from '@calls/actions';
 import BaseChip from '@components/chips/base_chip';
 import UserChip from '@components/chips/user_chip';
-import {General, Preferences, Screens} from '@constants';
+import {Preferences, Screens} from '@constants';
 import {useServerUrl} from '@context/server';
 import {runChecklistItem, skipChecklistItem, updateChecklistItem} from '@playbooks/actions/remote/checklist';
 import {bottomSheet, dismissAllRoutesAndPopToScreen} from '@screens/navigation';
@@ -36,7 +35,6 @@ jest.mocked(BaseChip).mockImplementation((props) => React.createElement('BaseChi
 jest.mock('./checklist_item_bottom_sheet');
 jest.mocked(ChecklistItemBottomSheet).mockImplementation((props: ComponentProps<typeof ChecklistItemBottomSheet>) => React.createElement('ChecklistItemBottomSheet', {...props, testID: 'checklist-item-bottom-sheet-component'}));
 
-jest.mock('@calls/actions');
 jest.mock('@playbooks/actions/remote/checklist');
 jest.mock('@utils/snack_bar');
 jest.mock('@screens/navigation');
@@ -65,8 +63,6 @@ describe('ChecklistItem', () => {
             itemNumber: 0,
             playbookRunId: 'run-id-1',
             isDisabled: false,
-            currentUserId: 'user-id-1',
-            channelType: General.OPEN_CHANNEL,
         };
     }
 
@@ -332,29 +328,6 @@ describe('ChecklistItem', () => {
         await waitFor(() => {
             expect(getByTestId('base-chip-component')).toBeVisible();
             expect(dismissAllRoutesAndPopToScreen).toHaveBeenCalled();
-            expect(handleCallsSlashCommand).not.toHaveBeenCalled();
-        });
-    });
-
-    it('should call handleCallsSlashCommand when the command is a call command', async () => {
-        const props = getBaseProps();
-        const item = TestHelper.fakePlaybookChecklistItemModel({});
-        item.command = '/call start';
-        props.item = item;
-
-        const {getByTestId} = renderWithIntl(<ChecklistItem {...props}/>);
-
-        const chip = getByTestId('base-chip-component');
-        jest.mocked(runChecklistItem).mockResolvedValueOnce({data: true});
-        jest.mocked(handleCallsSlashCommand).mockResolvedValueOnce({handled: true});
-
-        act(() => {
-            chip.props.onPress();
-        });
-
-        await waitFor(() => {
-            expect(runChecklistItem).toHaveBeenCalled();
-            expect(handleCallsSlashCommand).toHaveBeenCalledWith(item.command, serverUrl, props.channelId, props.channelType, '', props.currentUserId, expect.anything());
         });
     });
 

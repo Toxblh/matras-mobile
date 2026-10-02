@@ -153,7 +153,6 @@ PODS:
   - hermes-engine (0.14.1):
     - hermes-engine/Pre-built (= 0.14.1)
   - hermes-engine/Pre-built (0.14.1)
-  - JitsiWebRTC (124.0.2)
   - KituraContracts (1.2.1):
     - LoggerAPI (~> 1.7)
   - libwebp (1.5.0):
@@ -168,6 +167,39 @@ PODS:
   - libwebp/sharpyuv (1.5.0)
   - libwebp/webp (1.5.0):
     - libwebp/sharpyuv
+  - livekit-react-native (3.0.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - livekit-react-native-webrtc
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
+  - livekit-react-native-webrtc (144.2.0):
+    - LiveKitWebRTC (= 144.7559.15)
+    - React-Core
+  - LiveKitWebRTC (144.7559.15)
   - LoggerAPI (1.9.200):
     - Logging (~> 1.1)
   - Logging (1.4.0)
@@ -179,7 +211,7 @@ PODS:
     - Gekidou
     - glog
     - hermes-engine
-    - JitsiWebRTC (~> 124.0.0)
+    - LiveKitWebRTC (= 144.7559.15)
     - RCT-Folly
     - RCT-Folly/Fabric
     - RCTRequired
@@ -2800,9 +2832,34 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - react-native-webrtc (124.0.7):
-    - JitsiWebRTC (~> 124.0.0)
+  - react-native-webview (13.17.0):
+    - boost
+    - DoubleConversion
+    - fast_float
+    - fmt
+    - glog
+    - hermes-engine
+    - RCT-Folly
+    - RCT-Folly/Fabric
+    - RCTRequired
+    - RCTTypeSafety
     - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - SocketRocket
+    - Yoga
   - React-NativeModulesApple (0.83.9):
     - boost
     - DoubleConversion
@@ -4003,6 +4060,8 @@ DEPENDENCIES:
   - Gekidou (from `./Gekidou`)
   - glog (from `../node_modules/react-native/third-party-podspecs/glog.podspec`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
+  - "livekit-react-native (from `../node_modules/@livekit/react-native`)"
+  - "livekit-react-native-webrtc (from `../node_modules/@livekit/react-native-webrtc`)"
   - "mattermost-calls-native (from `../libraries/@mattermost/calls-native`)"
   - "mattermost-hardware-keyboard (from `../libraries/@mattermost/hardware-keyboard`)"
   - "mattermost-react-native-turbo-log (from `../node_modules/@mattermost/react-native-turbo-log`)"
@@ -4063,7 +4122,7 @@ DEPENDENCIES:
   - react-native-performance (from `../node_modules/react-native-performance`)
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - react-native-video (from `../node_modules/react-native-video`)
-  - react-native-webrtc (from `../node_modules/react-native-webrtc`)
+  - react-native-webview (from `../node_modules/react-native-webview`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -4125,9 +4184,9 @@ SPEC REPOS:
     - BlueECC
     - BlueRSA
     - CocoaLumberjack
-    - JitsiWebRTC
     - KituraContracts
     - libwebp
+    - LiveKitWebRTC
     - LoggerAPI
     - Logging
     - OpenGraph
@@ -4203,6 +4262,10 @@ EXTERNAL SOURCES:
   hermes-engine:
     :podspec: "../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec"
     :tag: hermes-v0.14.1
+  livekit-react-native:
+    :path: "../node_modules/@livekit/react-native"
+  livekit-react-native-webrtc:
+    :path: "../node_modules/@livekit/react-native-webrtc"
   mattermost-calls-native:
     :path: "../libraries/@mattermost/calls-native"
   mattermost-hardware-keyboard:
@@ -4319,8 +4382,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-safe-area-context"
   react-native-video:
     :path: "../node_modules/react-native-video"
-  react-native-webrtc:
-    :path: "../node_modules/react-native-webrtc"
+  react-native-webview:
+    :path: "../node_modules/react-native-webview"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -4464,13 +4527,15 @@ SPEC CHECKSUMS:
   fmt: 530618a01105dae0fa3a2f27c81ae11fa8f67eac
   Gekidou: 94199ed8d31b900f2caeb9d5739c19bed9defc4a
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
-  hermes-engine: 28814c9c9296d16aef26cb514de5378d18885e44
-  JitsiWebRTC: b47805ab5668be38e7ee60e2258f49badfe8e1d0
+  hermes-engine: d55adbb5d30b7dd257b5ad7b40892eae97c6fc86
   KituraContracts: e845e60dc8627ad0a76fa55ef20a45451d8f830b
   libwebp: 02b23773aedb6ff1fd38cec7a77b81414c6842a8
+  livekit-react-native: 2d40b75336f5e3e381f326a65731c11430015f80
+  livekit-react-native-webrtc: 3cd501a18d7ee8b95c21764dd8502201a0bc4cb3
+  LiveKitWebRTC: 6abc86e190722e223fc870284547b6f229288c46
   LoggerAPI: ad9c4a6f1e32f518fdb43a1347ac14d765ab5e3d
   Logging: beeb016c9c80cf77042d62e83495816847ef108b
-  mattermost-calls-native: 51d049f98b8c356184b8c0f273ccc8d725db990e
+  mattermost-calls-native: 8d2120e5db186cfbf5db010ba87650003760ba3f
   mattermost-hardware-keyboard: 95eb9c1e3d32b9e9921abcbb8765c516beaba9fd
   mattermost-react-native-turbo-log: 4aa8e7add21cd5df616cdbcdd70dd24cc541deba
   mattermost-rnutils: f5818ce6823a1f469f118ff7a923096b36185da0
@@ -4529,7 +4594,7 @@ SPEC CHECKSUMS:
   react-native-performance: a7a65d0b0f3055c5db33e1433e4345143ef6a100
   react-native-safe-area-context: eda63a662750758c1fdd7e719c9f1026c8d161cb
   react-native-video: d7e6372a63833708a2f7a8b48fed59036910428c
-  react-native-webrtc: e8f0ce746353adc2744a2b933645e1aeb41eaa74
+  react-native-webview: fb55e85095e22e6cfb814a2b122b4860de91a620
   React-NativeModulesApple: b917ca8e4702a3c7f283be6c5ebbdf0af8516c61
   React-networking: fd886fda5c01a731b6d2d8660bf8632047a3ca4e
   React-oscompat: 4524d8ccb12b7f07beb12e2ea9c5ea55b55d604b

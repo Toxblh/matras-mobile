@@ -5,21 +5,17 @@ import {withDatabase, withObservables} from '@nozbe/watermelondb/react';
 import {combineLatest, of as of$} from 'rxjs';
 import {distinctUntilChanged, map, switchMap, combineLatestWith} from 'rxjs/operators';
 
-import {observeIsCallsEnabledInChannel} from '@calls/observers';
-import {observeCallsConfig} from '@calls/state';
 import {General, Permissions} from '@constants';
 import {observeChannel} from '@queries/servers/channel';
 import {observePermissionForChannel, observePermissionForTeam, observeCanManageChannelSettings, observeCanManageChannelAutotranslations, observeCanManageSharedChannel} from '@queries/servers/role';
 import {
     observeConfigValue,
     observeConfigBooleanValue,
-    observeCurrentTeamId,
 } from '@queries/servers/system';
 import {observeCurrentTeam} from '@queries/servers/team';
-import {observeCurrentUser, observeUserIsChannelAdmin, observeUserIsTeamAdmin} from '@queries/servers/user';
-import {isTypeDMorGM, isDefaultChannel} from '@utils/channel';
+import {observeCurrentUser} from '@queries/servers/user';
+import {isDefaultChannel} from '@utils/channel';
 import {isMinimumServerVersion} from '@utils/helpers';
-import {isSystemAdmin} from '@utils/user';
 
 import ChannelSettings from './channel_settings';
 
@@ -27,76 +23,14 @@ import type {WithDatabaseArgs} from '@typings/database/database';
 
 type Props = WithDatabaseArgs & {
     channelId: string;
-    serverUrl: string;
 }
 
-const enhanced = withObservables(['channelId'], ({channelId, serverUrl, database}: Props) => {
+const enhanced = withObservables(['channelId'], ({channelId, database}: Props) => {
     const channel = observeChannel(database, channelId);
     const type = channel.pipe(switchMap((c) => of$(c?.type)));
-    const teamId = channel.pipe(switchMap((c) => (c?.teamId ? of$(c.teamId) : observeCurrentTeamId(database))));
     const currentUser = observeCurrentUser(database);
     const team = observeCurrentTeam(database);
-    const isTeamAdmin = combineLatest([teamId, currentUser]).pipe(
-        switchMap(([tId, u]) => (u ? observeUserIsTeamAdmin(database, u.id, tId) : of$(false))),
-    );
-
-    // Calls observables
-    const callsPluginEnabled = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.pluginEnabled)),
-        distinctUntilChanged(),
-    );
-    const callsDefaultEnabled = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.DefaultEnabled)),
-        distinctUntilChanged(),
-    );
-    const allowEnableCalls = observeCallsConfig(serverUrl).pipe(
-        switchMap((config) => of$(config.AllowEnableCalls)),
-        distinctUntilChanged(),
-    );
-    const systemAdmin = currentUser.pipe(
-        switchMap((u) => (u ? of$(u.roles) : of$(''))),
-        switchMap((roles) => of$(isSystemAdmin(roles || ''))),
-        distinctUntilChanged(),
-    );
-    const channelAdmin = currentUser.pipe(
-        switchMap((u) => (u ? observeUserIsChannelAdmin(database, u.id, channelId) : of$(false))),
-        distinctUntilChanged(),
-    );
     const serverVersion = observeConfigValue(database, 'Version');
-    const callsGAServer = serverVersion.pipe(
-        switchMap((v) => of$(isMinimumServerVersion(v || '', 7, 6))),
-    );
-    const dmOrGM = type.pipe(switchMap((t) => of$(isTypeDMorGM(t))));
-    const canEnableDisableCalls = combineLatest([callsPluginEnabled, callsDefaultEnabled, allowEnableCalls, systemAdmin, channelAdmin, callsGAServer, dmOrGM, isTeamAdmin]).pipe(
-        switchMap(([pluginEnabled, liveMode, allow, sysAdmin, chAdmin, gaServer, dmGM, tAdmin]) => {
-            if (!pluginEnabled) {
-                return of$(false);
-            }
-
-            if (gaServer) {
-                if (allow && !liveMode) {
-                    return of$(Boolean(sysAdmin));
-                }
-                if (allow && liveMode) {
-                    return of$(Boolean(chAdmin || tAdmin || sysAdmin || dmGM));
-                }
-                return of$(false);
-            }
-
-            // now we're pre GA 7.6
-            if (allow && liveMode) {
-                return of$(Boolean(chAdmin || sysAdmin || dmGM));
-            }
-            if (allow && !liveMode) {
-                return of$(Boolean(sysAdmin || chAdmin || dmGM));
-            }
-            if (!allow) {
-                return of$(Boolean(sysAdmin));
-            }
-            return of$(false);
-        }),
-    );
-    const isCallsEnabledInChannel = observeIsCallsEnabledInChannel(database, serverUrl, of$(channelId));
 
     const canManageSettings = currentUser.pipe(
         switchMap((u) => (u ? observeCanManageChannelSettings(database, channelId, u) : of$(false))),
@@ -190,12 +124,10 @@ const enhanced = withObservables(['channelId'], ({channelId, serverUrl, database
     return {
         canArchive,
         canConvert,
-        canEnableDisableCalls,
         canManageSettings,
         canUnarchive,
         convertGMOptionAvailable,
         displayName: channel.pipe(switchMap((c) => of$(c?.displayName || ''))),
-        isCallsEnabledInChannel,
         canManageAutotranslations,
         canManageSharedChannel,
         isGuestUser,

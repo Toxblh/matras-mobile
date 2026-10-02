@@ -8,7 +8,6 @@ import {type LayoutChangeEvent, StyleSheet} from 'react-native';
 import {type Edge, SafeAreaView} from 'react-native-safe-area-context';
 
 import {storeLastViewedThreadIdAndServer, removeLastViewedThreadIdAndServer} from '@actions/app/global';
-import FloatingCallContainer from '@calls/components/floating_call_container';
 import RoundedHeaderContext from '@components/rounded_header_context';
 import {Screens} from '@constants';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
@@ -24,9 +23,6 @@ import type PostModel from '@typings/database/models/servers/post';
 type ThreadProps = {
     isCRTEnabled: boolean;
     includeChannelBanner: boolean;
-    showJoinCallBanner: boolean;
-    isInACall: boolean;
-    showIncomingCalls: boolean;
     rootId: string;
     rootPost?: PostModel;
     scheduledPostCount: number;
@@ -43,9 +39,6 @@ const Thread = ({
     includeChannelBanner,
     rootId,
     rootPost,
-    showJoinCallBanner,
-    isInACall,
-    showIncomingCalls,
     scheduledPostCount,
 }: ThreadProps) => {
     const [containerHeight, setContainerHeight] = useState(0);
@@ -99,8 +92,6 @@ const Thread = ({
         setContainerHeight(e.nativeEvent.layout.height);
     }, []);
 
-    const showFloatingCallContainer = showJoinCallBanner || isInACall || showIncomingCalls;
-
     return (
         <SafeAreaView
             style={styles.flex}
@@ -119,15 +110,6 @@ const Thread = ({
                     includeChannelBanner={includeChannelBanner}
                 />
             )}
-            {showFloatingCallContainer &&
-            <FloatingCallContainer
-                channelId={rootPost!.channelId}
-                showJoinCallBanner={showJoinCallBanner}
-                showIncomingCalls={showIncomingCalls}
-                isInACall={isInACall}
-                threadScreen={true}
-            />
-            }
         </SafeAreaView>
     );
 };

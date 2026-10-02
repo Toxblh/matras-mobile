@@ -8,7 +8,7 @@ describe('gomon current call', () => {
         setGomonMinimized(true);
         expect(getCurrentGomonCall()).toBeUndefined();
 
-        const call = {serverUrl: 's', channelId: 'c', url: 'u', withCamera: false, locale: 'en', title: 't', startedAt: 1, minimized: false};
+        const call = {serverUrl: 's', channelId: 'c', url: 'u', withCamera: false, withMic: true, locale: 'en', title: 't', startedAt: 1, minimized: false};
         setCurrentGomonCall(call);
         setGomonMinimized(false);
         expect(getCurrentGomonCall()).toBe(call);

@@ -5,11 +5,9 @@ import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {defineMessages, useIntl} from 'react-intl';
 import {Notifications as RNNotifications} from 'react-native-notifications';
 
-import {getCallsConfig} from '@calls/state';
 import SettingContainer from '@components/settings/container';
 import SettingItem from '@components/settings/item';
 import {General, Screens} from '@constants';
-import {useServerUrl} from '@context/server';
 import useAndroidHardwareBackHandler from '@hooks/android_back_handler';
 import {useAppState} from '@hooks/device';
 import useNotificationProps from '@hooks/notification_props';
@@ -60,10 +58,8 @@ const Notifications = ({
     serverVersion,
 }: NotificationsProps) => {
     const intl = useIntl();
-    const serverUrl = useServerUrl();
 
     const notifyProps = useNotificationProps(currentUser);
-    const callsRingingEnabled = useMemo(() => getCallsConfig(serverUrl).EnableRinging, [serverUrl]);
     const [isRegistered, setIsRegistered] = useState(true);
 
     const appState = useAppState();
@@ -98,9 +94,6 @@ const Notifications = ({
         ).toString(),
     [emailInterval, enableEmailBatching, notifyProps, sendEmailNotifications]);
 
-    const callsNotificationsOn = useMemo(() => Boolean(notifyProps?.calls_mobile_sound ? notifyProps.calls_mobile_sound === 'true' : notifyProps?.calls_desktop_sound === 'true'),
-        [notifyProps]);
-
     const goToNotificationSettingsMentions = useCallback(() => {
         const message = isCRTEnabled ? mentionTexts.crtOn : mentionTexts.crtOff;
         const title = intl.formatMessage(message);
@@ -109,10 +102,6 @@ const Notifications = ({
 
     const goToNotificationSettingsPush = useCallback(() => {
         navigateToSettingsScreen(Screens.SETTINGS_NOTIFICATION_PUSH);
-    }, []);
-
-    const goToNotificationSettingsCall = useCallback(() => {
-        navigateToSettingsScreen(Screens.SETTINGS_NOTIFICATION_CALL);
     }, []);
 
     const goToNotificationAutoResponder = useCallback(() => {
@@ -142,14 +131,6 @@ const Notifications = ({
                 onPress={goToNotificationSettingsPush}
                 testID='notification_settings.push_notifications.option'
             />
-            {callsRingingEnabled &&
-                <SettingItem
-                    optionName='call_notification'
-                    onPress={goToNotificationSettingsCall}
-                    info={intl.formatMessage(callsNotificationsOn ? mentionTexts.callsOn : mentionTexts.callsOff)}
-                    testID='notification_settings.call_notifications.option'
-                />
-            }
             <SettingItem
                 optionName='email'
                 onPress={goToEmailSettings}

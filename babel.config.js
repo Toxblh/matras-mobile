@@ -19,7 +19,6 @@ module.exports = {
                 '@agents': './app/products/agents',
                 '@assets': './dist/assets/',
                 '@boards': './app/products/boards',
-                '@calls': './app/products/calls',
                 '@client': './app/client',
                 '@components': './app/components',
                 '@constants': './app/constants',

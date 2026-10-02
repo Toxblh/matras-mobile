@@ -5,4 +5,7 @@
     <string name="calls_decline">Отклонить</string>
     <string name="calls_hang_up">Завершить</string>
     <string name="calls_channel_incoming">Входящие звонки</string>
+    <string name="calls_mute">Выключить микрофон</string>
+    <string name="calls_unmute">Включить микрофон</string>
+    <string name="calls_stop_share">Остановить показ</string>
 </resources>

@@ -45,7 +45,7 @@ jobs:
       - name: npm ci
         run: npm ci --no-audit --no-fund
 
-      - name: предзагрузка react-android и hermes-android в ~/.m2
+      - name: предзагрузка react-android, hermes-android и LiveKit WebRTC в ~/.m2
         # Эти AAR по 100-240 МБ; gradle на раннере ALS стабильно ловит на них
         # Read timed out от Maven Central. curl с повторами и докачкой справляется,
         # а mavenLocal() в android/build.gradle стоит первым.
@@ -66,10 +66,10 @@ jobs:
             done
             return 1
           }
-          fetch() { # group artifact version
+          fetch() { # group artifact version [aar-suffix, по умолчанию -release]
             local path="${1//.//}/$2/$3" dir="$HOME/.m2/repository/${1//.//}/$2/$3" f sha
             mkdir -p "$dir"
-            for f in "$2-$3.pom" "$2-$3.module" "$2-$3-release.aar"; do
+            for f in "$2-$3.pom" "$2-$3.module" "$2-$3${4--release}.aar"; do
               echo "==> $f"
               get "$path/$f" "$dir/$f"
               sha="$(curl -fsSL --retry 5 "https://repo.maven.apache.org/maven2/$path/$f.sha1" | cut -c1-40)"
@@ -78,10 +78,16 @@ jobs:
           }
           fetch com.facebook.react react-android "$rn"
           fetch com.facebook.hermes hermes-android "$hermes"
-          du -sh "$HOME/.m2/repository/com/facebook"/*/*/*
+          # @livekit/react-native-webrtc: prefixed libwebrtc, ~22 МБ.
+          webrtc="$(sed -n "s/.*io.github.webrtc-sdk:android-prefixed:\([0-9.]*\).*/\1/p" node_modules/@livekit/react-native-webrtc/android/build.gradle)"
+          fetch io.github.webrtc-sdk android-prefixed "$webrtc" ""
+          du -sh "$HOME/.m2/repository/com/facebook"/*/*/* "$HOME/.m2/repository/io/github/webrtc-sdk"/*/*
 
       - name: tsc + lint
         run: npm run check
+
+      - name: общий код звонка (call_core) совпадает с записанной версией comms
+        run: scripts/sync-call-core.sh --check
 
       - name: keystore (если задан секрет)
         env:

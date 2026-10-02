@@ -27,7 +27,6 @@ describe('ChannelQuickAction', () => {
     function getBaseProps(): ComponentProps<typeof ChannelQuickActions> {
         return {
             channelId: 'channel-id',
-            callsEnabled: false,
             isDMorGM: false,
             hasPlaybookRuns: false,
         };

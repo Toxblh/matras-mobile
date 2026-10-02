@@ -1,7 +1,6 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {CallsManager} from '@calls/calls_manager';
 import DatabaseManager from '@database/manager';
 import CallsNative from '@init/calls_native';
 import {getAllServerCredentials} from '@init/credentials';
@@ -72,7 +71,6 @@ export async function initialize() {
     GlobalEventHandler.init();
     ManagedApp.init();
     SessionManager.init();
-    CallsManager.initialize();
     CallsNative.init();
     initSelfUpdate();
 
@@ -84,7 +82,6 @@ export function cleanup() {
     GlobalEventHandler.cleanup();
     SecurityManager.cleanup();
     SessionManager.cleanup();
-    CallsManager.cleanup();
     CallsNative.cleanup();
     PushNotifications.cleanup();
     EphemeralModeManager.cleanup();

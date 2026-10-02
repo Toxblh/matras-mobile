@@ -116,6 +116,8 @@ object MMCallsIncomingCall {
 
         currentUuid = uuid
         NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        // matras: and with the system, so car / Bluetooth Answer and DND treat it as a call.
+        MMCallsTelecom.addIncoming(context, call, answerIntent, declineIntent)
     }
 
     /**

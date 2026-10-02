@@ -22,6 +22,8 @@ export default defineConfig([
     "ios/",
     ".github/",
     "detox/artifacts/",
+    // vendored from comms packages/call-core by scripts/sync-call-core.sh (its own code style)
+    "app/products/gomon/native/call_core/",
   ]),
   eslintMattermost,
   jestConfig,

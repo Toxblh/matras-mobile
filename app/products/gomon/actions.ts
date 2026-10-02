@@ -4,12 +4,12 @@
 import {defineMessages, type IntlShape} from 'react-intl';
 import {Alert, AppState, DeviceEventEmitter} from 'react-native';
 
-import {hasCameraPermission, hasMicrophonePermission, leaveCall} from '@calls/actions';
-import {getCurrentCall} from '@calls/state/current_call';
 import {Screens} from '@constants';
 import {SNACK_BAR_TYPE} from '@constants/snack_bar';
 import DatabaseManager from '@database/manager';
 import {GOMON_EVENTS, GOMON_INCOMING_CLOSED} from '@gomon/constants';
+import {isGomonNativeEnabled} from '@gomon/native/flag';
+import {hasCameraPermission, hasMicrophonePermission} from '@gomon/permissions';
 import {getCurrentGomonCall, setCurrentGomonCall, setGomonChannelCall, setGomonMinimized, setGomonPluginEnabled} from '@gomon/store';
 import {buildEmbedUrl, isGomonPluginEnabled, isLiveState} from '@gomon/utils';
 import NetworkManager from '@managers/network_manager';
@@ -23,6 +23,7 @@ const messages = defineMessages({
     failed: {id: 'gomon.call_failed', defaultMessage: 'Could not connect to the call'},
     title: {id: 'gomon.call_title', defaultMessage: 'Call'},
     alreadyInCall: {id: 'gomon.already_in_call', defaultMessage: 'You are already in a call'},
+    micDenied: {id: 'gomon.mic_denied', defaultMessage: 'No microphone access: you joined muted and can only listen'},
 });
 
 // One call at a time: bring the active one back instead of starting another.
@@ -66,12 +67,13 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
     if (expandActiveGomonCall(intl, serverUrl, channelId)) {
         return;
     }
-    if (getCurrentCall()) {
-        leaveCall();
-    }
-    await hasMicrophonePermission();
+
+    // Before the call's foreground service and Telecom call start: their microphone / camera
+    // types need the permissions granted (Android 14+ throws SecurityException otherwise).
+    const withMic = await hasMicrophonePermission();
     const withCamera = video && await hasCameraPermission(intl);
     const title = await channelTitle(serverUrl, channelId);
+    const native = await isGomonNativeEnabled();
 
     // A second tap may have opened it while we waited for the permissions.
     if (expandActiveGomonCall(intl, serverUrl, channelId)) {
@@ -82,12 +84,17 @@ export async function openGomonCall(intl: IntlShape, serverUrl: string, channelI
         channelId,
         callId,
         withCamera,
-        url: buildEmbedUrl(joinUrl, !withCamera),
+        withMic,
+        url: native ? joinUrl : buildEmbedUrl(joinUrl, !withCamera),
+        native,
         locale: intl.locale,
         title: title || intl.formatMessage(messages.title),
         startedAt: Date.now(),
         minimized: false,
     });
+    if (!withMic) {
+        showSnackBar({barType: SNACK_BAR_TYPE.PLUGIN_TOAST, customMessage: intl.formatMessage(messages.micDenied)});
+    }
 }
 
 const showFailure = (intl: IntlShape, error: unknown) => {

@@ -11,10 +11,10 @@ import {setCurrentUserStatus} from '@actions/local/user';
 import {fetchStatusByIds} from '@actions/remote/user';
 import {handleFirstConnect, handleReconnect} from '@actions/websocket';
 import {handleWebSocketEvent} from '@actions/websocket/event';
-import {hasActiveNativeCall} from '@calls/native_call_mappings';
 import WebSocketClient from '@client/websocket';
 import {General} from '@constants';
 import DatabaseManager from '@database/manager';
+import {getCurrentGomonCall} from '@gomon/store';
 import {getCurrentUserId} from '@queries/servers/system';
 import {queryAllUsers} from '@queries/servers/user';
 import {toMilliseconds} from '@utils/datetime';
@@ -321,9 +321,9 @@ class WebsocketManagerSingleton {
         this.backgroundTimerId = BackgroundTimer.setTimeout(() => {
             this.isBackgroundTimerRunning = false;
 
-            // Skip closing while a native call is active; closeAll would drop
+            // Skip closing while a call is active; closeAll would drop
             // the WS that's carrying call lifecycle events.
-            if (hasActiveNativeCall()) {
+            if (getCurrentGomonCall()) {
                 return;
             }
             this.closeAll();

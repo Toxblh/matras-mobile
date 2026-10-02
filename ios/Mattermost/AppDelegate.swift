@@ -7,6 +7,8 @@ import RNNotifications
 import RNSentry
 import react_native_paste_input
 import mattermost_calls_native
+import livekit_react_native
+import livekit_react_native_webrtc
 import mattermost_rnutils
 import mattermost_hardware_keyboard
 import TurboLogIOSNative
@@ -85,6 +87,11 @@ class AppDelegate: ExpoAppDelegate, OrientationLockable {
         // PKPushRegistry + CXProvider on the main queue, synchronously,
         // before any VoIP push delegate can fire.
         CallsBridge.shared.bootstrap()
+
+        // matras: native gomon calls (LiveKit). Before React Native starts.
+        LivekitReactNative.setup()
+        // Keep the camera running in Picture in Picture (iOS 18+ with the voip background mode).
+        WebRTCModuleOptions.sharedInstance().enableMultitaskingCameraAccess = true
 
         #if canImport(mattermost_intune)
         // Initialize Intune MAM delegates BEFORE React Native

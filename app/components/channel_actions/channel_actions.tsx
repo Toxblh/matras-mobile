@@ -4,23 +4,20 @@
 import React, {useCallback} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import ChannelInfoStartCallButton from '@calls/components/channel_info_start_call';
 import AddMembersBox from '@components/channel_actions/add_members_box';
 import CopyChannelLinkBox from '@components/channel_actions/copy_channel_link_box';
 import FavoriteBox from '@components/channel_actions/favorite_box';
 import MutedBox from '@components/channel_actions/mute_box';
 import SetHeaderBox from '@components/channel_actions/set_header_box';
-import {useServerUrl} from '@context/server';
 import {GomonCallBox} from '@gomon/components/call_button';
 import {dismissBottomSheet} from '@screens/navigation';
-import {isDMChannel, isTypeDMorGM} from '@utils/channel';
+import {isTypeDMorGM} from '@utils/channel';
 
 type Props = {
     channelId: string;
     channelType?: ChannelType;
     inModal?: boolean;
     dismissChannelInfo: () => void;
-    callsEnabled: boolean;
     testID?: string;
     canManageMembers: boolean;
 }
@@ -42,12 +39,9 @@ const ChannelActions = ({
     channelType,
     inModal = false,
     dismissChannelInfo,
-    callsEnabled,
     canManageMembers,
     testID,
 }: Props) => {
-    const serverUrl = useServerUrl();
-
     const onCopyLinkAnimationEnd = useCallback(() => {
         if (!inModal) {
             requestAnimationFrame(async () => {
@@ -57,7 +51,6 @@ const ChannelActions = ({
     }, [inModal]);
 
     const isDMOrGM = isTypeDMorGM(channelType);
-    const isDM = isDMChannel(channelType);
 
     return (
         <View style={styles.wrapper}>
@@ -91,23 +84,13 @@ const ChannelActions = ({
                     testID={`${testID}.add_members.action`}
                 />
             }
-            {!isDMOrGM && !callsEnabled &&
+            {!isDMOrGM &&
                 <>
                     <View style={styles.separator}/>
                     <CopyChannelLinkBox
                         channelId={channelId}
                         onAnimationEnd={onCopyLinkAnimationEnd}
                         testID={`${testID}.copy_channel_link.action`}
-                    />
-                </>
-            }
-            {(!isDM && callsEnabled) &&
-                <>
-                    <View style={styles.separator}/>
-                    <ChannelInfoStartCallButton
-                        serverUrl={serverUrl}
-                        channelId={channelId}
-                        dismissChannelInfo={dismissChannelInfo}
                     />
                 </>
             }

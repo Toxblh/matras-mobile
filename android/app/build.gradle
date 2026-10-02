@@ -2,6 +2,11 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
+// matras: `-PmatrasDevSuffix=true` makes the debug build a side-by-side dev app
+// (ru.toxblh.matras.dev, "Matras Dev") with the JS bundle embedded, so it runs
+// on a real phone next to the daily app and without Metro. Release builds are untouched.
+def matrasDev = findProperty('matrasDevSuffix') == 'true'
+
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -37,6 +42,11 @@ apply plugin: "com.facebook.react"
     //
     //   The entry file for bundle generation. Default is 'index.android.js' or 'index.js'
     entryFile = file("../../index.tsx")
+    if (matrasDev) {
+        // Embed a production bundle (expo's dev runtime insists on Metro); the debug
+        // hooks key off the dev application id instead of __DEV__.
+        debuggableVariants = []
+    }
     //
     //   A list of extra flags to pass to the 'bundle' commands.
     //   See https://github.com/react-native-community/cli/blob/main/docs/commands.md#bundle
@@ -111,6 +121,8 @@ android {
 
     defaultConfig {
         applicationId "com.mattermost.rnbeta"
+        // matras: the dev app (matrasDevSuffix) swaps these for matrasdev so it does not claim the daily app's links
+        manifestPlaceholders += [mattermostScheme: "mattermost", mmauthScheme: "mmauthbeta"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 814
@@ -291,3 +303,14 @@ tasks.register('copyDownloadableDepsToLibs', Copy) {
 }
 
 apply plugin: 'com.google.gms.google-services'
+
+if (matrasDev) {
+    androidComponents {
+        onVariants(selector().withBuildType('debug')) { variant ->
+            variant.applicationId.set('ru.toxblh.matras.dev')
+            variant.manifestPlaceholders.put('mattermostScheme', 'matrasdev')
+            variant.manifestPlaceholders.put('mmauthScheme', 'matrasdev')
+        }
+    }
+    android.sourceSets.debug.res.srcDirs += 'src/matrasDev/res'
+}
