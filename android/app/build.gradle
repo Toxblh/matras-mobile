@@ -6,6 +6,9 @@ apply plugin: "com.facebook.react"
 // (ru.toxblh.matras.dev, "Matras Dev") with the JS bundle embedded, so it runs
 // on a real phone next to the daily app and without Metro. Release builds are untouched.
 def matrasDev = findProperty('matrasDevSuffix') == 'true'
+// matras: `-PmatrasAppId=ru.toxblh.matras` (CI sets it together with our own google-services.json)
+// builds the app our push proxy serves; without it the build stays com.mattermost.rnbeta.
+def matrasAppId = findProperty('matrasAppId')
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -120,9 +123,10 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.mattermost.rnbeta"
-        // matras: the dev app (matrasDevSuffix) swaps these for matrasdev so it does not claim the daily app's links
-        manifestPlaceholders += [mattermostScheme: "mattermost", mmauthScheme: "mmauthbeta"]
+        applicationId matrasAppId ?: "com.mattermost.rnbeta"
+        // matras: the dev app (matrasDevSuffix) swaps these for matrasdev so it does not claim the daily app's links;
+        // SSO redirects to mmauthbeta:// only for an rnbeta id (isBetaApp), so our own id takes mmauth://
+        manifestPlaceholders += [mattermostScheme: "mattermost", mmauthScheme: matrasAppId ? "mmauth" : "mmauthbeta"]
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 814

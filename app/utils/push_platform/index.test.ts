@@ -9,6 +9,7 @@ describe('pushPlatformPrefix', () => {
         expect(pushPlatformPrefix('ios', 'com.mattermost.rnbeta')).toBe('apple_rnbeta');
         expect(pushPlatformPrefix('ios', 'com.mattermost.rn')).toBe('apple_rn');
         expect(pushPlatformPrefix('ios', null)).toBe('apple_rn');
-        expect(pushPlatformPrefix('android', 'ru.toxblh.matras')).toBe('android_rn');
+        expect(pushPlatformPrefix('android', 'ru.toxblh.matras')).toBe('android_matras');
+        expect(pushPlatformPrefix('android', 'com.mattermost.rnbeta')).toBe('android_rn');
     });
 });

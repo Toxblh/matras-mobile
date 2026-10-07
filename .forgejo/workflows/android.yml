@@ -89,6 +89,27 @@ jobs:
       - name: общий код звонка (call_core) совпадает с записанной версией comms
         run: scripts/sync-call-core.sh --check
 
+      # Свой Firebase-проект: с секретом APK собирается как ru.toxblh.matras и получает пуши
+      # через наш push-прокси (docs/push-proxy.md); без секрета остаётся com.mattermost.rnbeta.
+      - name: google-services.json своего Firebase (если задан секрет)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${GOOGLE_SERVICES_JSON:-}" ]; then
+            echo "GOOGLE_SERVICES_JSON не задан — сборка com.mattermost.rnbeta"
+            exit 0
+          fi
+          f=android/app/google-services.json
+          case "$GOOGLE_SERVICES_JSON" in
+            '{'*) printf '%s' "$GOOGLE_SERVICES_JSON" > "$f" ;;
+            *) printf '%s' "$GOOGLE_SERVICES_JSON" | base64 -d > "$f" ;;
+          esac
+          grep -q '"package_name": *"ru.toxblh.matras"' "$f" \
+            || { echo "::error::в GOOGLE_SERVICES_JSON нет приложения ru.toxblh.matras"; exit 1; }
+          echo "matrasAppId=ru.toxblh.matras" >> android/gradle.properties
+          echo "сборка ru.toxblh.matras со своим Firebase"
+
       - name: keystore (если задан секрет)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
